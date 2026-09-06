@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/media/kanakku-demo.mp4">▶ Watch the demo</a>
+  <a href="https://kanakku1.vercel.app">▶ Try KANAKKU Live</a>
   ·
   <a href="docs/ARCHITECTURE.md">Architecture</a>
   ·
