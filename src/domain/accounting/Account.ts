@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseDomain } from '../parse';
 
 export const AccountType = z.enum([
   'ASSET',
@@ -38,7 +39,7 @@ export const AccountSchema = z.object({
 export type Account = z.infer<typeof AccountSchema>;
 
 export const createAccount = (input: Omit<Account, 'id' | 'createdAt' | 'status'> & Partial<Pick<Account, 'id' | 'createdAt' | 'status'>>): Account => {
-  return {
+  return parseDomain(AccountSchema, {
     id: input.id ?? crypto.randomUUID(),
     tenantId: input.tenantId,
     code: input.code,
@@ -48,5 +49,5 @@ export const createAccount = (input: Omit<Account, 'id' | 'createdAt' | 'status'
     currency: input.currency,
     status: input.status ?? 'ACTIVE',
     createdAt: input.createdAt ?? new Date()
-  };
+  }, 'Account');
 };

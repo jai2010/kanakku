@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { isEventAttributeIdentifier } from '../events/resolveEventField';
+import { parseDomain } from '../parse';
 
 export const TreatmentSide = z.enum([
   'DEBIT',
@@ -7,10 +9,12 @@ export const TreatmentSide = z.enum([
 
 export type TreatmentSide = z.infer<typeof TreatmentSide>;
 
-// For MVP, we support EVENT_AMOUNT and FIXED_AMOUNT
+// RATE_AMOUNT is a fraction of EVENT_AMOUNT (0.05 = 5%).
 export const AmountExpressionType = z.enum([
   'EVENT_AMOUNT',
-  'FIXED_AMOUNT'
+  'FIXED_AMOUNT',
+  'ATTRIBUTE_AMOUNT',
+  'RATE_AMOUNT'
 ]);
 
 export type AmountExpressionType = z.infer<typeof AmountExpressionType>;
@@ -21,13 +25,22 @@ export type AmountExpressionType = z.infer<typeof AmountExpressionType>;
 export const AmountExpressionSchema = z.object({
   type: AmountExpressionType,
   // For FIXED_AMOUNT, we need a value and currency
-  value: z.number().positive().optional(),
-  currency: z.string().length(3).optional()
+  value: z.number().finite().positive().optional(),
+  currency: z.string().length(3).optional(),
+  // For ATTRIBUTE_AMOUNT, a single attribute identifier
+  attribute: z.string().optional(),
+  // For RATE_AMOUNT, a positive fraction of EVENT_AMOUNT
+  rate: z.number().finite().positive().max(1).optional()
 }).refine((val) => {
   if (val.type === 'FIXED_AMOUNT') {
     return val.value !== undefined && val.currency !== undefined;
   }
-  // For EVENT_AMOUNT, we don't require value or currency (they come from the event)
+  if (val.type === 'ATTRIBUTE_AMOUNT') {
+    return val.attribute !== undefined && isEventAttributeIdentifier(val.attribute);
+  }
+  if (val.type === 'RATE_AMOUNT') {
+    return val.rate !== undefined && val.rate > 0 && val.rate <= 1;
+  }
   return true;
 });
 
@@ -49,7 +62,7 @@ export const AccountingTreatmentSchema = z.object({
 export type AccountingTreatment = z.infer<typeof AccountingTreatmentSchema>;
 
 export const createAccountingTreatment = (input: Omit<AccountingTreatment, 'lines'> & { lines: TreatmentLine[] }): AccountingTreatment => {
-  return {
+  return parseDomain(AccountingTreatmentSchema, {
     lines: input.lines
-  };
+  }, 'AccountingTreatment');
 };

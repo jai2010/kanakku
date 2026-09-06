@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { JournalLineSchema } from './JournalLine'; // We'll create this next
+import { JournalLineSchema } from './JournalLine';
+import { parseDomain } from '../parse';
 
 export const JournalStatus = z.enum([
   'DRAFT',
@@ -35,7 +36,7 @@ export const JournalSchema = z.object({
 export type Journal = z.infer<typeof JournalSchema>;
 
 export const createJournal = (input: Omit<Journal, 'id' | 'createdAt'> & Partial<Pick<Journal, 'id' | 'createdAt'>>): Journal => {
-  return {
+  return parseDomain(JournalSchema, {
     id: input.id ?? crypto.randomUUID(),
     tenantId: input.tenantId,
     businessEventId: input.businessEventId,
@@ -49,5 +50,5 @@ export const createJournal = (input: Omit<Journal, 'id' | 'createdAt'> & Partial
     status: input.status ?? 'DRAFT',
     createdAt: input.createdAt ?? new Date(),
     postedAt: input.postedAt
-  };
+  }, 'Journal');
 };

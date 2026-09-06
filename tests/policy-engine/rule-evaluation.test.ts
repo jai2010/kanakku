@@ -1,99 +1,41 @@
-// Mock policy engine for testing rule evaluation
-// In a real implementation, this would import the actual policy engine
+import { id } from '../fixtures/ids';
+import { PolicyEngineService } from '../../src/application/policies/PolicyEngineService';
+import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { AccountingTreatment } from '../../src/domain/accounting/AccountingTreatment';
+import { TreatmentLine } from '../../src/domain/accounting/AccountingTreatment';
+import { AmountExpression } from '../../src/domain/accounting/AccountingTreatment';
 
 describe('Policy Engine - Rule Evaluation', () => {
-  // We'll create mock data for testing
-  const createMockAccount = (id: string, name: string, type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE') => ({
-    id,
-    name,
-    type
+  let policyEngine: PolicyEngineService;
+
+  beforeEach(() => {
+    policyEngine = new PolicyEngineService();
   });
 
-  const mockAccounts = new Map([
-    ['acc-1', createMockAccount('acc-1', 'Cash', 'ASSET')],
-    ['acc-2', createMockAccount('acc-2', 'Business Meals', 'EXPENSE')],
-    ['acc-3', createMockAccount('acc-3', 'Credit Card', 'LIABILITY')]
-  ]);
-
-  // Simple rule evaluation function for testing
-  const evaluateRules = (event: any, policyVersion: any) => {
-    const matchedRules: string[] = [];
-    let selectedRuleId: string | undefined;
-    let highestPriority = -Infinity;
-
-    for (const rule of policyVersion.definition.rules) {
-      if (evaluateCondition(rule.when, event)) {
-        matchedRules.push(rule.id);
-        if (rule.priority > highestPriority) {
-          highestPriority = rule.priority;
-          selectedRuleId = rule.id;
-        }
-      }
-    }
-
-    return {
-      matched: matchedRules.length > 0,
-      matchedRuleIds: matchedRules,
-      selectedRuleId,
-      reason: matchedRules.length > 0 ? 'MATCHED_RULE' : 'NO_MATCHING_RULE'
-    };
-  };
-
-  const evaluateCondition = (condition: any, event: any): boolean => {
-    if (condition.field && condition.operator && condition.value !== undefined) {
-      // Simple condition
-      return evaluateSimpleCondition(condition, event);
-    } else {
-      // Logical grouping: we expect one of 'all', 'any', 'not'
-      if (condition.all) {
-        // AND: all subconditions must be true
-        for (const subcondition of condition.all) {
-          if (!evaluateCondition(subcondition, event)) return false;
-        }
-        return true;
-      } else if (condition.any) {
-        // OR: at least one subcondition must be true
-        for (const subcondition of condition.any) {
-          if (evaluateCondition(subcondition, event)) return true;
-        }
-        return false;
-      } else if (condition.not) {
-        // NOT: invert the result of the subcondition
-        return !evaluateCondition(condition.not, event);
-      }
-    }
-    return false;
-  };
-
-  const evaluateSimpleCondition = (condition: any, event: any) => {
-    const eventValue: any = (event as any)[condition.field];
-    switch (condition.operator) {
-      case 'equals': return eventValue === condition.value;
-      case 'not_equals': return eventValue !== condition.value;
-      case 'greater_than': return eventValue > condition.value;
-      case 'greater_than_or_equal': return eventValue >= condition.value;
-      case 'less_than': return eventValue < condition.value;
-      case 'less_than_or_equal': return eventValue <= condition.value;
-      case 'in': return Array.isArray(condition.value) && condition.value.includes(eventValue);
-      case 'not_in': return !Array.isArray(condition.value) || !condition.value.includes(eventValue);
-      case 'exists': return eventValue !== undefined && eventValue !== null;
-      default: return false;
-    }
-  };
-
   it('should evaluate a simple equals condition', () => {
-    const event = {
+    const event = createBusinessEvent({
+      id: id('evt-simple-equals'),
+      tenantId: id('tenant-1'),
       eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount: 7800,
+      currency: 'INR',
       counterparty: 'Starbucks',
-      amount: 7800
-    };
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-1',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-1'),
+      policyId: id('pol-1'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-1',
+            id: id('rule-1'),
             priority: 100,
             when: {
               field: 'eventType',
@@ -103,38 +45,48 @@ describe('Policy Engine - Rule Evaluation', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-2', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-1', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-2'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-1'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(true);
-    expect(result.selectedRuleId).toBe('rule-1');
-    expect(result.matchedRuleIds).toEqual(['rule-1']);
+    expect(result.selectedRuleId).toBe(id('rule-1'));
+    expect(result.matchedRuleIds).toEqual([id('rule-1')]);
   });
 
   it('should evaluate a complex condition with AND', () => {
-    const event = {
+    const event = createBusinessEvent({
+      id: id('evt-and-condition'),
+      tenantId: id('tenant-1'),
       eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount: 7800,
+      currency: 'INR',
       counterparty: 'Starbucks',
-      amount: 7800
-    };
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-2',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-2'),
+      policyId: id('pol-2'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-1',
+            id: id('rule-1'),
             priority: 100,
             when: {
-              all: [
+              AND: [
                 { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
                 { field: 'counterparty', operator: 'equals', value: 'Starbucks' },
                 { field: 'amount', operator: 'greater_than', value: 5000 }
@@ -143,34 +95,44 @@ describe('Policy Engine - Rule Evaluation', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-2', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-3', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-2'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-3'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(true);
-    expect(result.selectedRuleId).toBe('rule-1');
+    expect(result.selectedRuleId).toBe(id('rule-1'));
   });
 
   it('should select the highest priority rule when multiple match', () => {
-    const event = {
+    const event = createBusinessEvent({
+      id: id('evt-priority'),
+      tenantId: id('tenant-1'),
       eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount: 7800,
+      currency: 'INR',
       counterparty: 'Starbucks',
-      amount: 7800
-    };
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-3',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-3'),
+      policyId: id('pol-3'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-low',
+            id: id('rule-low'),
             priority: 50,
             when: {
               field: 'eventType',
@@ -180,17 +142,17 @@ describe('Policy Engine - Rule Evaluation', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-2', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-1', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-2'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-1'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           },
           {
-            id: 'rule-high',
+            id: id('rule-high'),
             priority: 100,
             when: {
-              all: [
+              AND: [
                 { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
                 { field: 'counterparty', operator: 'equals', value: 'Starbucks' },
                 { field: 'amount', operator: 'greater_than', value: 5000 }
@@ -199,35 +161,45 @@ describe('Policy Engine - Rule Evaluation', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-2', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-3', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-2'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-3'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(true);
-    expect(result.selectedRuleId).toBe('rule-high'); // Higher priority wins
-    expect(result.matchedRuleIds).toEqual(['rule-low', 'rule-high']);
+    expect(result.selectedRuleId).toBe(id('rule-high')); // Higher priority wins
+    expect(result.matchedRuleIds).toEqual([id('rule-low'), id('rule-high')]);
   });
 
   it('should not match when no rules apply', () => {
-    const event = {
-      eventType: 'SALE', // Different event type
+    const event = createBusinessEvent({
+      id: id('evt-no-match'),
+      tenantId: id('tenant-1'),
+      eventType: 'PAYMENT',
+      occurredAt: new Date('2026-09-03'),
+      amount: 7800,
+      currency: 'INR',
       counterparty: 'Starbucks',
-      amount: 7800
-    };
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-4',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-4'),
+      policyId: id('pol-4'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-1',
+            id: id('rule-1'),
             priority: 100,
             when: {
               field: 'eventType',
@@ -237,19 +209,19 @@ describe('Policy Engine - Rule Evaluation', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-2', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-1', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-2'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-1'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(false);
-    expect(result.selectedRuleId).toBeUndefined();
+    expect(result.selectedRuleId).toBeNull();
     expect(result.matchedRuleIds).toEqual([]);
   });
 });

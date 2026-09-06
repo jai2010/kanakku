@@ -1,203 +1,284 @@
-// Tests for accounting engine account validation
-
+import { id } from '../fixtures/ids';
+import { AccountingEngineService } from '../../src/application/accounting/AccountingEngineService';
+import { InMemoryAccountRepository } from '../../src/infrastructure/memory/InMemoryAccountRepository';
+import { InMemoryJournalRepository } from '../../src/infrastructure/memory/InMemoryJournalRepository';
 import { createAccount } from '../../src/domain/accounting/Account';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
+import { Journal } from '../../src/domain/accounting/Journal';
+import { PolicyVersion } from '../../src/domain/policies/PolicyVersion';
 
-// Mock validation functions for account validation
-describe('Accounting Engine - Account Validation', () => {
-  // Mock function to validate account exists and is active
-  const validateAccount = (accountId: string, validAccounts: Map<string, any>) => {
-    const account = validAccounts.get(accountId);
-    if (!account) {
-      return { valid: false, reason: 'ACCOUNT_NOT_FOUND' };
-    }
+describe('Accounting Engine - Account Validation (Production)', () => {
+  let accountingEngine: AccountingEngineService;
+  let accountRepository: InMemoryAccountRepository;
+  let journalRepository: InMemoryJournalRepository;
 
-    if (account.status !== 'ACTIVE') {
-      return { valid: false, reason: 'ACCOUNT_INACTIVE' };
-    }
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    journalRepository = new InMemoryJournalRepository();
+    accountingEngine = new AccountingEngineService({
+      dependencies: {
+        accountRepository,
+        journalRepository
+      }
+    });
+  });
 
-    return { valid: true, account };
-  };
+  afterEach(() => {
+    accountRepository.clear();
+    journalRepository.clear();
+  });
 
-  // Mock function to validate account belongs to tenant
-  const validateAccountTenancy = (accountId: string, tenantId: string, validAccounts: Map<string, any>) => {
-    const account = validAccounts.get(accountId);
-    if (!account) {
-      return { valid: false, reason: 'ACCOUNT_NOT_FOUND' };
-    }
+  function addAccount(params: {
+    id: string;
+    tenantId: string;
+    code: string;
+    name: string;
+    type: 'ASSET' | 'LIABILITY' | 'EXPENSE' | 'INCOME' | 'EQUITY';
+    status?: 'ACTIVE' | 'INACTIVE';
+  }) {
+    const account = createAccount({
+      id: params.id,
+      tenantId: params.tenantId,
+      code: params.code,
+      name: params.name,
+      type: params.type,
+      status: params.status ?? 'ACTIVE'
+    });
+    accountRepository.add(account);
+    return account;
+  }
 
-    if (account.tenantId !== tenantId) {
-      return { valid: false, reason: 'ACCOUNT_TENANT_MISMATCH' };
-    }
+  function purchaseEvent(tenantId: string) {
+    return createBusinessEvent({
+      id: id('evt-account-validation'),
+      tenantId,
+      eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount: 1000,
+      currency: 'USD',
+      attributes: {}
+    });
+  }
 
-    return { valid: true, account };
-  };
+  function policyUsing(debitAccountId: string, creditAccountId: string): PolicyVersion {
+    return createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-account-validation'),
+      policyId: id('pol-account-validation'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('rule-account-validation'),
+            priority: 100,
+            when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+            then: {
+              treatment: {
+                lines: [
+                  { accountId: debitAccountId, side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: creditAccountId, side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    });
+  }
 
-  // Mock function to validate account type compatibility with posting side
-  const validateAccountType = (accountId: string, side: 'DEBIT' | 'CREDIT', validAccounts: Map<string, any>) => {
-    const account = validAccounts.get(accountId);
-    if (!account) {
-      return { valid: false, reason: 'ACCOUNT_NOT_FOUND' };
-    }
-
-    // In real accounting, certain account types should normally have certain sides
-    // EXPENSE accounts: normally DEBIT
-    // REVENUE accounts: normally CREDIT
-    // ASSET accounts: normally DEBIT
-    // LIABILITY accounts: normally CREDIT
-    // EQUITY accounts: normally CREDIT
-
-    // For this test, we'll just warn about unusual combinations but not reject them
-    // as businesses can have valid reasons for unusual postings
-
-    const isUnusual = (
-      (account.type === 'EXPENSE' && side === 'CREDIT') ||
-      (account.type === 'INCOME' && side === 'DEBIT') ||
-      (account.type === 'ASSET' && side === 'CREDIT') ||
-      (account.type === 'LIABILITY' && side === 'DEBIT') ||
-      (account.type === 'EQUITY' && side === 'DEBIT')
-    );
-
+  function handBuiltJournal(debitAccountId: string, creditAccountId: string, tenantId: string): Journal {
     return {
-      valid: true,
-      account,
-      warning: isUnusual ? 'Unusual account type/side combination' : undefined
+      id: id('journal-account-validation'),
+      tenantId,
+      businessEventId: id('evt-account-validation'),
+      accountingTransactionId: id('txn-account-validation'),
+      transactionDate: new Date('2026-09-03'),
+      currency: 'USD',
+      description: 'Account validation journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('journal-account-validation'),
+          accountId: debitAccountId,
+          debit: 1000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('journal-account-validation'),
+          accountId: creditAccountId,
+          debit: 0,
+          credit: 1000,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date('2026-09-03')
     };
-  };
+  }
 
-  const setupValidAccounts = () => {
-    const accounts = new Map<string, any>();
-
-    // Set up some valid accounts
-    accounts.set('acc-1000', createAccount({
-      id: 'acc-1000',
-      tenantId: 'tenant-1',
+  it('accepts existing ACTIVE accounts during generateJournal and validateJournal', async () => {
+    addAccount({
+      id: id('acc-1000'),
+      tenantId: id('tenant-1'),
       code: '1000',
       name: 'Cash',
-      type: 'ASSET',
-      status: 'ACTIVE'
-    }));
-
-    accounts.set('acc-2000', createAccount({
-      id: 'acc-2000',
-      tenantId: 'tenant-1',
-      code: '2000',
-      name: 'Accounts Payable',
-      type: 'LIABILITY',
-      status: 'ACTIVE'
-    }));
-
-    accounts.set('acc-4000', createAccount({
-      id: 'acc-4000',
-      tenantId: 'tenant-1',
-      code: '4000',
-      name: 'Revenue',
-      type: 'INCOME',
-      status: 'ACTIVE'
-    }));
-
-    accounts.set('acc-5000', createAccount({
-      id: 'acc-5000',
-      tenantId: 'tenant-1',
+      type: 'ASSET'
+    });
+    addAccount({
+      id: id('acc-5000'),
+      tenantId: id('tenant-1'),
       code: '5000',
       name: 'Expenses',
-      type: 'EXPENSE',
-      status: 'ACTIVE'
-    }));
+      type: 'EXPENSE'
+    });
 
-    // Set up an inactive account
-    accounts.set('acc-9999', createAccount({
-      id: 'acc-9999',
-      tenantId: 'tenant-1',
+    const journal = await accountingEngine.generateJournal(
+      purchaseEvent(id('tenant-1')),
+      policyUsing(id('acc-5000'), id('acc-1000'))
+    );
+
+    expect(journal.lines).toHaveLength(2);
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(true);
+  });
+
+  it('generateJournal throws when an account does not exist', async () => {
+    addAccount({
+      id: id('acc-1000'),
+      tenantId: id('tenant-1'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET'
+    });
+
+    await expect(
+      accountingEngine.generateJournal(
+        purchaseEvent(id('tenant-1')),
+        policyUsing(id('acc-missing'), id('acc-1000'))
+      )
+    ).rejects.toThrow(`Account not found: ${id('acc-missing')}`);
+  });
+
+  it('validateJournal returns ACCOUNT_NOT_FOUND for a missing account', async () => {
+    addAccount({
+      id: id('acc-1000'),
+      tenantId: id('tenant-1'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET'
+    });
+
+    const validation = await accountingEngine.validateJournal(
+      handBuiltJournal(id('acc-missing'), id('acc-1000'), id('tenant-1'))
+    );
+
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toBe('ACCOUNT_NOT_FOUND');
+    expect(validation.accountId).toBe(id('acc-missing'));
+  });
+
+  it('generateJournal throws when an account is INACTIVE', async () => {
+    addAccount({
+      id: id('acc-9999'),
+      tenantId: id('tenant-1'),
       code: '9999',
       name: 'Old Cash Account',
       type: 'ASSET',
       status: 'INACTIVE'
-    }));
+    });
+    addAccount({
+      id: id('acc-1000'),
+      tenantId: id('tenant-1'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET'
+    });
 
-    // Set up an account for another tenant
-    accounts.set('acc-8888', createAccount({
-      id: 'acc-8888',
-      tenantId: 'tenant-2', // Different tenant
+    await expect(
+      accountingEngine.generateJournal(
+        purchaseEvent(id('tenant-1')),
+        policyUsing(id('acc-9999'), id('acc-1000'))
+      )
+    ).rejects.toThrow(`Account is not active: ${id('acc-9999')}`);
+  });
+
+  it('validateJournal returns ACCOUNT_INACTIVE for an inactive account', async () => {
+    addAccount({
+      id: id('acc-9999'),
+      tenantId: id('tenant-1'),
+      code: '9999',
+      name: 'Old Cash Account',
+      type: 'ASSET',
+      status: 'INACTIVE'
+    });
+    addAccount({
+      id: id('acc-1000'),
+      tenantId: id('tenant-1'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET'
+    });
+
+    const validation = await accountingEngine.validateJournal(
+      handBuiltJournal(id('acc-9999'), id('acc-1000'), id('tenant-1'))
+    );
+
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toBe('ACCOUNT_INACTIVE');
+    expect(validation.accountId).toBe(id('acc-9999'));
+  });
+
+  it('generateJournal rejects a cross-tenant account', async () => {
+    addAccount({
+      id: id('acc-8888'),
+      tenantId: id('tenant-2'),
       code: '8888',
       name: 'Foreign Cash',
-      type: 'ASSET',
-      status: 'ACTIVE'
-    }));
+      type: 'ASSET'
+    });
+    addAccount({
+      id: id('acc-5000'),
+      tenantId: id('tenant-1'),
+      code: '5000',
+      name: 'Expenses',
+      type: 'EXPENSE'
+    });
 
-    return accounts;
-  };
-
-  it('should validate an existing active account', () => {
-    const accounts = setupValidAccounts();
-    const result = validateAccount('acc-1000', accounts);
-
-    expect(result.valid).toBe(true);
-    expect(result.account.id).toBe('acc-1000');
-    expect(result.account.name).toBe('Cash');
+    await expect(
+      accountingEngine.generateJournal(
+        purchaseEvent(id('tenant-1')),
+        policyUsing(id('acc-5000'), id('acc-8888'))
+      )
+    ).rejects.toThrow('Account tenant mismatch');
   });
 
-  it('should reject a non-existent account', () => {
-    const accounts = setupValidAccounts();
-    const result = validateAccount('acc-non-existent', accounts);
+  it('validateJournal rejects a cross-tenant account', async () => {
+    addAccount({
+      id: id('acc-8888'),
+      tenantId: id('tenant-2'),
+      code: '8888',
+      name: 'Foreign Cash',
+      type: 'ASSET'
+    });
+    addAccount({
+      id: id('acc-5000'),
+      tenantId: id('tenant-1'),
+      code: '5000',
+      name: 'Expenses',
+      type: 'EXPENSE'
+    });
 
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe('ACCOUNT_NOT_FOUND');
-  });
-
-  it('should reject an inactive account', () => {
-    const accounts = setupValidAccounts();
-    const result = validateAccount('acc-9999', accounts);
-
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe('ACCOUNT_INACTIVE');
-  });
-
-  it('should validate account tenancy for correct tenant', () => {
-    const accounts = setupValidAccounts();
-    const result = validateAccountTenancy('acc-1000', 'tenant-1', accounts);
-
-    expect(result.valid).toBe(true);
-    expect(result.account.id).toBe('acc-1000');
-  });
-
-  it('should reject account tenancy for wrong tenant', () => {
-    const accounts = setupValidAccounts();
-    const result = validateAccountTenancy('acc-8888', 'tenant-1', accounts); // acc-8888 belongs to tenant-2
-
-    expect(result.valid).toBe(false);
-    expect(result.reason).toBe('ACCOUNT_TENANT_MISMATCH');
-  });
-
-  it('should validate normal account type/side combinations', () => {
-    const accounts = setupValidAccounts();
-
-    // EXPENSE account with DEBIT (normal)
-    let result = validateAccountType('acc-5000', 'DEBIT', accounts);
-    expect(result.valid).toBe(true);
-    expect(result.warning).toBeUndefined();
-
-    // LIABILITY account with CREDIT (normal)
-    result = validateAccountType('acc-2000', 'CREDIT', accounts);
-    expect(result.valid).toBe(true);
-    expect(result.warning).toBeUndefined();
-
-    // ASSET account with DEBIT (normal)
-    result = validateAccountType('acc-1000', 'DEBIT', accounts);
-    expect(result.valid).toBe(true);
-    expect(result.warning).toBeUndefined();
-  });
-
-  it('flag unusual but valid account type/side combinations', () => {
-    const accounts = setupValidAccounts();
-
-    // EXPENSE account with CREDIT (unusual but possible, e.g., expense refund)
-    let result = validateAccountType('acc-5000', 'CREDIT', accounts);
-    expect(result.valid).toBe(true);
-    expect(result.warning).toBe('Unusual account type/side combination');
-
-    // REVENUE account with DEBIT (unusual but possible, e.g., sales return)
-    result = validateAccountType('acc-4000', 'DEBIT', accounts);
-    expect(result.valid).toBe(true);
-    expect(result.warning).toBe('Unusual account type/side combination');
+    const validation = await accountingEngine.validateJournal(
+      handBuiltJournal(id('acc-5000'), id('acc-8888'), id('tenant-1'))
+    );
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toBe('ACCOUNT_TENANT_MISMATCH');
+    expect(validation.accountId).toBe(id('acc-8888'));
   });
 });

@@ -32,5 +32,5 @@ export interface AccountingEngine {
    * @param reason The reason for the reversal
    * @returns Result of the reversal operation
    */
-  reverse(journalId: string, reason: string): Promise<ReversalResult>;
+  reverse(journalId: string, reason: string, tenantId: string): Promise<ReversalResult>;
 }

@@ -1,105 +1,555 @@
-// Tests for accounting engine balancing validation
-
+import { id } from '../fixtures/ids';
+import { AccountingEngineService } from '../../src/application/accounting/AccountingEngineService';
+import { InMemoryAccountRepository } from '../../src/infrastructure/memory/InMemoryAccountRepository';
+import { InMemoryJournalRepository } from '../../src/infrastructure/memory/InMemoryJournalRepository';
 import { createAccount } from '../../src/domain/accounting/Account';
 import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { Journal } from '../../src/domain/accounting/Journal';
 
-// Mock validation functions to test balancing logic
-describe('Accounting Engine - Balancing Validation', () => {
-  // Mock function to validate journal balancing (similar to what would be in the real engine)
-  const validateJournalBalancing = (journalLines: any[]) => {
-    const totalDebits = journalLines.reduce((sum: number, line: any) => sum + (line.debit || 0), 0);
-    const totalCredits = journalLines.reduce((sum: number, line: any) => sum + (line.credit || 0), 0);
+describe('Accounting Engine - Balancing Validation (Production)', () => {
+  let accountingEngine: AccountingEngineService;
+  let accountRepository: InMemoryAccountRepository;
+  let journalRepository: InMemoryJournalRepository;
 
-    return {
-      balanced: totalDebits === totalCredits,
-      totalDebits,
-      totalCredits,
-      difference: Math.abs(totalDebits - totalCredits)
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    journalRepository = new InMemoryJournalRepository();
+
+    accountingEngine = new AccountingEngineService({
+      dependencies: {
+        accountRepository,
+        journalRepository
+      }
+    });
+  });
+
+  afterEach(() => {
+    accountRepository.clear();
+    journalRepository.clear();
+  });
+
+  it('should validate a balanced two-line journal', async () => {
+    // Set up test accounts
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
+
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    // Create a balanced journal manually for testing validation
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Test journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: 5000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 5000,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
     };
-  };
 
-  // Mock account validation function
-  const validateAccountExists = (accountId: string, validAccounts: Set<string>) => {
-    return validAccounts.has(accountId);
-  };
-
-  it('should validate a balanced two-line journal', () => {
-    const journalLines = [
-      { accountId: 'acc-1', debit: 5000, credit: 0 },
-      { accountId: 'acc-2', debit: 0, credit: 5000 }
-    ];
-
-    const result = validateJournalBalancing(journalLines);
-    expect(result.balanced).toBe(true);
-    expect(result.totalDebits).toBe(5000);
-    expect(result.totalCredits).toBe(5000);
-    expect(result.difference).toBe(0);
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(true);
   });
 
-  it('should detect an unbalanced journal with excess debit', () => {
-    const journalLines = [
-      { accountId: 'acc-1', debit: 6000, credit: 0 },
-      { accountId: 'acc-2', debit: 0, credit: 5000 }
-    ];
+  it('should detect an unbalanced journal with excess debit', async () => {
+    // Set up test accounts
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
 
-    const result = validateJournalBalancing(journalLines);
-    expect(result.balanced).toBe(false);
-    expect(result.totalDebits).toBe(6000);
-    expect(result.totalCredits).toBe(5000);
-    expect(result.difference).toBe(1000);
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    // Create an unbalanced journal manually for testing validation
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Test journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: 6000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 5000,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toBe('JOURNAL_NOT_BALANCED');
   });
 
-  it('should detect an unbalanced journal with excess credit', () => {
-    const journalLines = [
-      { accountId: 'acc-1', debit: 4000, credit: 0 },
-      { accountId: 'acc-2', debit: 0, credit: 5000 }
-    ];
+  it('should detect an unbalanced journal with excess credit', async () => {
+    // Set up test accounts
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
 
-    const result = validateJournalBalancing(journalLines);
-    expect(result.balanced).toBe(false);
-    expect(result.totalDebits).toBe(4000);
-    expect(result.totalCredits).toBe(5000);
-    expect(result.difference).toBe(1000);
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    // Create an unbalanced journal manually for testing validation
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Test journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: 4000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 5000,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toBe('JOURNAL_NOT_BALANCED');
   });
 
-  it('should validate a complex multi-line balanced journal', () => {
-    const journalLines = [
-      { accountId: 'acc-1', debit: 3000, credit: 0 },  // Travel
-      { accountId: 'acc-2', debit: 2000, credit: 0 },  // Entertainment
-      { accountId: 'acc-3', debit: 1000, credit: 0 },  // Tax
-      { accountId: 'acc-4', debit: 0, credit: 6000 }   // Credit Card
-    ];
+  it('should validate a complex multi-line balanced journal', async () => {
+    // Set up test accounts
+    const travelAccount = createAccount({
+      id: id('travel-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5000',
+      name: 'Travel',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
 
-    const result = validateJournalBalancing(journalLines);
-    expect(result.balanced).toBe(true);
-    expect(result.totalDebits).toBe(6000);
-    expect(result.totalCredits).toBe(6000);
-    expect(result.difference).toBe(0);
+    const entertainmentAccount = createAccount({
+      id: id('entertainment-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5010',
+      name: 'Entertainment',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
+
+    const taxAccount = createAccount({
+      id: id('tax-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5020',
+      name: 'Tax',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
+
+    const creditCardAccount = createAccount({
+      id: id('credit-card-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '2000',
+      name: 'Credit Card',
+      type: 'LIABILITY',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(travelAccount);
+    accountRepository.add(entertainmentAccount);
+    accountRepository.add(taxAccount);
+    accountRepository.add(creditCardAccount);
+
+    // Create a complex balanced journal manually for testing validation
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Test journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: travelAccount.id,
+          debit: 3000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: entertainmentAccount.id,
+          debit: 2000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-3'),
+          journalId: id('test-journal-id'),
+          accountId: taxAccount.id,
+          debit: 1000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-4'),
+          journalId: id('test-journal-id'),
+          accountId: creditCardAccount.id,
+          debit: 0,
+          credit: 6000,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(true);
   });
 
-  it('should validate a journal with fractional amounts', () => {
-    const journalLines = [
-      { accountId: 'acc-1', debit: 1000.50, credit: 0 },
-      { accountId: 'acc-2', debit: 0, credit: 1000.50 }
-    ];
+  it('should validate a journal with fractional amounts', async () => {
+    // Set up test accounts
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
 
-    const result = validateJournalBalancing(journalLines);
-    expect(result.balanced).toBe(true);
-    expect(result.totalDebits).toBe(1000.50);
-    expect(result.totalCredits).toBe(1000.50);
-    expect(result.difference).toBe(0);
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    // Create a journal with fractional amounts manually for testing validation
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Test journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: 1000.50,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 1000.50,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(true);
   });
 
-  it('should handle zero amounts correctly (though unusual in practice)', () => {
-    const journalLines = [
-      { accountId: 'acc-1', debit: 0, credit: 0 },   // This would normally be invalid due to line validation
-      { accountId: 'acc-2', debit: 0, credit: 0 }
-    ];
+  it('should reject journal with zero amounts', async () => {
+    // Set up test accounts
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
 
-    const result = validateJournalBalancing(journalLines);
-    expect(result.balanced).toBe(true);
-    expect(result.totalDebits).toBe(0);
-    expect(result.totalCredits).toBe(0);
-    expect(result.difference).toBe(0);
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    // Create a journal with zero amounts manually for testing validation
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Test journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: 0,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 0,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(false);
+    // Zero debit and zero credit fails the domain line-side invariant first
+    expect(validation.reason).toBe('INVALID_LINE_SIDE');
+  });
+
+  it('rejects Infinity amounts before treating them as balanced', async () => {
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    const journal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'Infinite journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: Number.POSITIVE_INFINITY,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: Number.POSITIVE_INFINITY,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const validation = await accountingEngine.validateJournal(journal);
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toBe('NON_FINITE_AMOUNT');
+    await expect(accountingEngine.post(journal)).rejects.toThrow('NON_FINITE_AMOUNT');
+  });
+
+  it('rejects NaN and negative line amounts', async () => {
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
+    const revenueAccount = createAccount({
+      id: id('revenue-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '4000',
+      name: 'Revenue',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
+    accountRepository.add(cashAccount);
+    accountRepository.add(revenueAccount);
+
+    const nanJournal: Journal = {
+      id: id('test-journal-id'),
+      tenantId: id('test-tenant-id'),
+      businessEventId: id('test-event-id'),
+      accountingTransactionId: id('test-transaction-id'),
+      transactionDate: new Date(),
+      currency: 'USD',
+      description: 'NaN journal',
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: Number.NaN,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 1000,
+          currency: 'USD'
+        }
+      ],
+      status: 'DRAFT',
+      createdAt: new Date()
+    };
+
+    const negativeJournal: Journal = {
+      ...nanJournal,
+      lines: [
+        {
+          id: id('line-1'),
+          journalId: id('test-journal-id'),
+          accountId: cashAccount.id,
+          debit: -1000,
+          credit: 0,
+          currency: 'USD'
+        },
+        {
+          id: id('line-2'),
+          journalId: id('test-journal-id'),
+          accountId: revenueAccount.id,
+          debit: 0,
+          credit: 1000,
+          currency: 'USD'
+        }
+      ]
+    };
+
+    const nanValidation = await accountingEngine.validateJournal(nanJournal);
+    expect(nanValidation.valid).toBe(false);
+    expect(nanValidation.reason).toBe('NON_FINITE_AMOUNT');
+
+    const negativeValidation = await accountingEngine.validateJournal(negativeJournal);
+    expect(negativeValidation.valid).toBe(false);
+    expect(negativeValidation.reason).toBe('NON_POSITIVE_AMOUNT');
   });
 });

@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { Journal } from './Journal';
+import { Journal, JournalSchema } from './Journal';
 
 export const PostedJournalSchema = z.object({
   // All properties from Journal
-  ...Journal.shape,
+  ...JournalSchema.shape,
 
   // Additional posting metadata
   postedAt: z.date(),

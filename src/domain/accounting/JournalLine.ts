@@ -6,8 +6,8 @@ export const JournalLineSchema = z.object({
   accountId: z.string().uuid(),
 
   // Using separate debit and credit fields ensures only one is > 0
-  debit: z.number().nonnegative(),
-  credit: z.number().nonnegative(),
+  debit: z.number().finite().nonnegative(),
+  credit: z.number().finite().nonnegative(),
 
   currency: z.string().length(3),
 

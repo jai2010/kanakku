@@ -1,81 +1,125 @@
-# SUTRA - AI-Native Accounting Policy & Ledger Engine
+# KANAKKU
 
-This is an implementation of the SUTRA accounting engine based on the provided requirements document.
+**Speak English. Kanakku handles the accounting.**
 
-## Project Structure
+Open-source playground for a deterministic accounting engine. Drop in a transaction, watch the policy fire, and see a balanced journal post.
+
+[![Live demo](https://img.shields.io/badge/demo-kanakku.vercel.app-39a8ff?style=flat-square)](https://kanakku.vercel.app)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ce38a?style=flat-square)](LICENSE)
+[![CI](https://github.com/jai2010/sutra/actions/workflows/test.yml/badge.svg)](https://github.com/jai2010/sutra/actions/workflows/test.yml)
+
+**Live demo → [kanakku.vercel.app](https://kanakku.vercel.app)**
+
+## Demo
+
+![Kanakku demo](docs/media/kanakku-demo.mp4)
+
+[Watch the demo](docs/media/kanakku-demo.mp4) · [Open the live playground](https://kanakku.vercel.app)
+
+<p align="center">
+  <img src="docs/media/engine.png" alt="Kanakku Engine posting a marketplace sale" />
+</p>
+
+## Why this exists
+
+Most accounting software hides the posting rules. Kanakku puts them in front of you.
+
+You speak in business language. Kanakku matches a policy, builds a double-entry journal, and posts it. The same input always produces the same journal.
+
+That is the whole product:
+
+| Surface | Question |
+|---|---|
+| **Transactions** | What happened? |
+| **Engine** | How does Kanakku account for it? |
+| **Accounting Studio** | Tell Kanakku what you want. |
+| **Ledger** | What did Kanakku record? |
+| **Recon** | Does what happened match what Kanakku recorded? |
+
+## Surfaces
+
+**Engine** — send a purchase, refund, usage event, wallet movement, or marketplace sale. Watch policy, rules, operational effect, journal, validator, and ledger fire in order.
+
+**Transactions** — the operational record: buyers, sellers, wallets, payouts, and whether each event was accounted.
+
+**Accounting Studio** — write English such as *“Treat Starbucks over ₹5,000 as Business Meals.”* Kanakku turns that into a versioned transformation.
+
+**Ledger** — posted journals, account history, and a trial balance that has to balance.
+
+**Recon** — a corporate-card statement against what Kanakku booked. Exact match, amount difference, missing in Kanakku, missing externally, resolved.
+
+<p align="center">
+  <img src="docs/media/transactions.png" alt="Transactions" width="49%" />
+  <img src="docs/media/studio.png" alt="Accounting Studio" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/media/ledger.png" alt="Ledger" width="49%" />
+  <img src="docs/media/recon.png" alt="Reconciliation" width="49%" />
+</p>
+
+## Quick start
+
+```bash
+git clone https://github.com/jai2010/sutra.git
+cd sutra
+npm install
+npm run dev:web
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+```bash
+npm test              # kernel + playground tests
+npx tsc --noEmit      # kernel types
+npm run build         # kernel + Next production build
+```
+
+No API keys are required. Accounting Studio’s English compiler uses a fake LLM unless you set one — see [`.env.example`](.env.example).
+
+## How posting works
 
 ```
-src/
-├── domain/
-│   ├── accounting/          # Accounting core domain objects
-│   ├── events/              # Business event definitions
-│   ├── policies/            # Policy and rule definitions
-│   └── ledger/              # Ledger domain objects (to be implemented)
-├── application/
-│   ├── accounting/          # Application services for accounting
-│   ├── events/              # Application services for events (to be implemented)
-│   └── policies/            # Application services for policies (to be implemented)
-└── infrastructure/
-    ├── database/            # Database implementations (to be implemented)
-    └── ai/                  # AI service implementations (to be implemented)
+Business event
+      ↓
+Policy version (effective-dated rules)
+      ↓
+Matched transformation
+      ↓
+Balanced journal  (DR = CR)
+      ↓
+Posted ledger + optional operational balances
 ```
 
-## Core Components Implemented
+Rules are stored as a small DSL, compiled, and evaluated deterministically. Amounts can be the event total, a fixed figure, an attribute, or a rate (marketplace fee, tax, usage × unit price).
 
-1. **Account** - Chart of accounts with hierarchy support
-2. **BusinessEvent** - Economic events with extensible attributes
-3. **Policy** - Accounting policy container
-4. **PolicyVersion** - Versioned policies with effective dating
-5. **PolicyIR** - Policy Intermediate Representation (JSON schema)
-6. **AccountingTreatment** - Multi-line journal entry definitions
-7. **Journal** - Concrete accounting results
-8. **JournalLine** - Individual lines in a journal entry
-9. **AccountingEngine** - Interface for the deterministic accounting core
-10. **MockAccountingEngine** - Demonstration implementation
+The kernel does **not** call an LLM to decide the journal. AI is only an authoring aid. Simulation and posting stay deterministic.
 
-## How to Run
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Due to environmental restrictions in this setup, you'll need to manually install dependencies and run the code:
+## What this demo is
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+- An in-memory playground with seeded Indian-rupee demo data
+- A real double-entry engine, policy DSL, and test suite
+- A public UI at [kanakku.vercel.app](https://kanakku.vercel.app)
 
-2. Compile TypeScript:
-   ```bash
-   npx tsc
-   ```
+## What this demo is not
 
-3. Run the application:
-   ```bash
-   node dist/index.js
-   ```
+- Not a bank feed, Plaid, or ERP connector
+- Not a production multi-tenant general ledger
+- Not a close / lock / multi-currency system
+- Recon is deterministic matching, not ML
 
-   Or directly with ts-node:
-   ```bash
-   npx ts-node src/index.js
-   ```
+Reloading a serverless instance resets the in-memory books. That is expected. See [docs/DEPLOY.md](docs/DEPLOY.md).
 
-## Key Features Demonstrated
+## Documentation
 
-- Double-entry accounting validation
-- Policy-based rule evaluation
-- Journal generation from business events
-- Posting and reversal capabilities
-- Type-safe domain models using Zod
-- Modular architecture separating domain, application, and infrastructure concerns
+| | |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | Kernel, layers, posting path |
+| [Deploy](docs/DEPLOY.md) | Vercel, env, in-memory limits |
+| [Contributing](CONTRIBUTING.md) | How to change the engine or UI |
+| [License](LICENSE) | MIT |
 
-## Next Steps
+## License
 
-To complete the MVP as outlined in the requirements:
-
-1. Implement a real database persistence layer (PostgreSQL/Supabase)
-2. Add proper policy validation and conflict detection
-3. Implement policy simulation capabilities
-4. Add AI natural language to policy compiler
-5. Create API endpoints for external systems
-6. Add comprehensive test suite for accounting invariants
-7. Implement ledger and reporting capabilities
-
-The current implementation provides a solid foundation that demonstrates the core accounting engine functionality without AI dependencies, proving that deterministic accounting execution can be separated from policy interpretation.
+MIT. See [LICENSE](LICENSE).

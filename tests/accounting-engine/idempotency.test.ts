@@ -1,140 +1,178 @@
-// Tests for accounting engine idempotency
+import { id } from '../fixtures/ids';
+import { AccountingService } from '../../src/application/accounting/AccountingService';
+import { InMemoryAccountRepository } from '../../src/infrastructure/memory/InMemoryAccountRepository';
+import { InMemoryPolicyVersionRepository } from '../../src/infrastructure/memory/InMemoryPolicyVersionRepository';
+import { InMemoryJournalRepository } from '../../src/infrastructure/memory/InMemoryJournalRepository';
+import { createAccount } from '../../src/domain/accounting/Account';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
 
-describe('Accounting Engine - Idempotency', () => {
-  // Mock function to check if a business event has already been processed
-  // In a real system, this would check a database or ledger
-  const isEventAlreadyProcessed = (processedEvents: Set<string>, eventId: string) => {
-    return processedEvents.has(eventId);
-  };
+describe('Accounting Engine - Idempotency (Production)', () => {
+  let accountingService: AccountingService;
+  let accountRepository: InMemoryAccountRepository;
+  let policyVersionRepository: InMemoryPolicyVersionRepository;
+  let journalRepository: InMemoryJournalRepository;
 
-  // Mock function to process a business event (would normally create journal and post)
-  const processBusinessEvent = (event: any, processedEvents: Set<string>) => {
-    // Check idempotency first
-    if (isEventAlreadyProcessed(processedEvents, event.id)) {
-      return {
-        status: 'IDEMPOTENT',
-        message: 'Event already processed, no duplicate accounting created',
-        journalId: null // No new journal created
-      };
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    policyVersionRepository = new InMemoryPolicyVersionRepository();
+    journalRepository = new InMemoryJournalRepository();
+    accountingService = new AccountingService({
+      policyVersionRepository,
+      accountRepository,
+      journalRepository
+    });
+
+    accountRepository.add(createAccount({
+      id: id('acc-5000'),
+      tenantId: id('tenant-1'),
+      code: '5000',
+      name: 'Expenses',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    }));
+    accountRepository.add(createAccount({
+      id: id('acc-1000'),
+      tenantId: id('tenant-1'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    }));
+
+    policyVersionRepository.add(createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-idempotency'),
+      policyId: id('pol-idempotency'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('rule-idempotency'),
+            priority: 100,
+            when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+            then: {
+              treatment: {
+                lines: [
+                  { accountId: id('acc-5000'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-1000'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }));
+  });
+
+  afterEach(() => {
+    accountRepository.clear();
+    policyVersionRepository.clear();
+    journalRepository.clear();
+  });
+
+  function purchaseEvent(eventId: string, amount: number) {
+    return createBusinessEvent({
+      id: eventId,
+      tenantId: id('tenant-1'),
+      eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount,
+      currency: 'INR',
+      counterparty: 'Starbucks',
+      attributes: {}
+    });
+  }
+
+  it('processes a business event for the first time and persists the posted journal', async () => {
+    const result = await accountingService.processEvent(purchaseEvent(id('event-123'), 7800));
+
+    expect(result.error).toBeUndefined();
+    expect(result.evaluation.matched).toBe(true);
+    expect(result.journal).toBeDefined();
+    expect(result.postedJournal).toBeDefined();
+    expect(result.postedJournal?.status).toBe('POSTED');
+    expect(result.journal?.businessEventId).toBe(id('event-123'));
+
+    const postedId = result.postedJournal?.id;
+    expect(postedId).toBeDefined();
+    if (postedId !== undefined) {
+      const stored = await journalRepository.getPostedJournal(postedId);
+      expect(stored).not.toBeNull();
+      expect(stored?.status).toBe('POSTED');
+      expect(stored?.businessEventId).toBe(id('event-123'));
+    }
+  });
+
+  it('returns the existing posted journal on a second processEvent for the same event id', async () => {
+    // Second call is a no-create: same persisted original, no second accounting journal.
+    const event = purchaseEvent(id('event-456'), 5000);
+
+    const first = await accountingService.processEvent(event);
+    const second = await accountingService.processEvent(event);
+
+    expect(first.error).toBeUndefined();
+    expect(second.error).toBeUndefined();
+    expect(first.postedJournal?.id).toBeDefined();
+    expect(second.postedJournal?.id).toBe(first.postedJournal?.id);
+    expect(second.postedJournal?.transactionId).toBe(first.postedJournal?.transactionId);
+    expect(second.evaluation.selectedRuleId).toBe(id('rule-idempotency'));
+    expect(second.evaluation.policyVersionId).toBe(id('pv-idempotency'));
+
+    const stored = await journalRepository.findByBusinessEventId(event.id, id('tenant-1'));
+    const originals = stored.filter((journal) => !journal.description.startsWith('Reversal of journal '));
+    expect(originals).toHaveLength(1);
+    expect(originals[0].id).toBe(first.postedJournal?.id);
+  });
+
+  it('processes different event ids independently', async () => {
+    const first = await accountingService.processEvent(purchaseEvent(id('event-001'), 3000));
+    const second = await accountingService.processEvent(purchaseEvent(id('event-002'), 1500));
+
+    expect(first.error).toBeUndefined();
+    expect(second.error).toBeUndefined();
+    expect(first.journal?.businessEventId).toBe(id('event-001'));
+    expect(second.journal?.businessEventId).toBe(id('event-002'));
+    expect(first.postedJournal?.id).not.toBe(second.postedJournal?.id);
+    expect(first.journal?.lines[0].debit).toBe(3000);
+    expect(second.journal?.lines[0].debit).toBe(1500);
+    expect(await journalRepository.findByBusinessEventId(id('event-001'), id('tenant-1'))).toHaveLength(1);
+    expect(await journalRepository.findByBusinessEventId(id('event-002'), id('tenant-1'))).toHaveLength(1);
+  });
+
+  it('does not create a new original journal after the existing one has been reversed', async () => {
+    const event = purchaseEvent(id('event-reversed-idempotent'), 5000);
+    const first = await accountingService.processEvent(event);
+    const postedId = first.postedJournal?.id;
+    expect(postedId).toBeDefined();
+    if (postedId === undefined) {
+      return;
     }
 
-    // Normally we would create and post a journal here
-    // For this test, we'll just mark the event as processed
-    processedEvents.add(event.id);
+    const reversal = await accountingService.reverseJournal(postedId, 'correction', event.tenantId);
+    expect(reversal.success).toBe(true);
 
-    return {
-      status: 'POSTED',
-      message: 'Event processed and journal posted',
-      journalId: `journal-${event.id}` // Mock journal ID
-    };
-  };
+    const second = await accountingService.processEvent(event);
+    expect(second.error).toBeUndefined();
+    expect(second.postedJournal?.id).toBe(postedId);
+    expect(second.postedJournal?.status).toBe('REVERSED');
 
-  it('should process a business event for the first time', () => {
-    const processedEvents = new Set<string>();
-    const event = {
-      id: 'event-123',
-      tenantId: 'tenant-1',
-      eventType: 'PURCHASE',
-      amount: 7800,
-      occurredAt: new Date('2026-09-03')
-    };
-
-    const result = processBusinessEvent(event, processedEvents);
-
-    expect(result.status).toBe('POSTED');
-    expect(result.message).toBe('Event processed and journal posted');
-    expect(result.journalId).toBe('journal-event-123');
-    expect(processedEvents.has('event-123')).toBe(true);
+    const stored = await journalRepository.findByBusinessEventId(event.id, id('tenant-1'));
+    const originals = stored.filter((journal) => !journal.description.startsWith('Reversal of journal '));
+    expect(originals).toHaveLength(1);
+    expect(originals[0].status).toBe('REVERSED');
   });
 
-  it('should not create duplicate accounting for the same event id', () => {
-    const processedEvents = new Set<string>();
-    const event = {
-      id: 'event-456',
-      tenantId: 'tenant-1',
-      eventType: 'PURCHASE',
-      amount: 5000,
-      occurredAt: new Date('2026-09-03')
-    };
+  it('treats events with the same attributes but different ids as distinct events', async () => {
+    const first = await accountingService.processEvent(purchaseEvent(id('event-abc'), 7800));
+    const second = await accountingService.processEvent(purchaseEvent(id('event-def'), 7800));
 
-    // Process the event first time
-    const firstResult = processBusinessEvent(event, processedEvents);
-    expect(firstResult.status).toBe('POSTED');
-
-    // Process the same event again
-    const secondResult = processBusinessEvent(event, processedEvents);
-    expect(secondResult.status).toBe('IDEMPOTENT');
-    expect(secondResult.message).toBe('Event already processed, no duplicate accounting created');
-    expect(secondResult.journalId).toBeNull();
-
-    // Verify the event is still only in the set once
-    expect(processedEvents.size).toBe(1);
-    expect(processedEvents.has('event-456')).toBe(true);
-  });
-
-  it('should process different events normally', () => {
-    const processedEvents = new Set<string>();
-    const event1 = {
-      id: 'event-001',
-      tenantId: 'tenant-1',
-      eventType: 'PURCHASE',
-      amount: 3000,
-      occurredAt: new Date('2026-09-03')
-    };
-
-    const event2 = {
-      id: 'event-002',
-      tenantId: 'tenant-1',
-      eventType: 'REFUND',
-      amount: 1500,
-      occurredAt: new Date('2026-09-03')
-    };
-
-    // Process first event
-    const result1 = processBusinessEvent(event1, processedEvents);
-    expect(result1.status).toBe('POSTED');
-
-    // Process second event (different ID)
-    const result2 = processBusinessEvent(event2, processedEvents);
-    expect(result2.status).toBe('POSTED');
-
-    // Both events should be in the set
-    expect(processedEvents.size).toBe(2);
-    expect(processedEvents.has('event-001')).toBe(true);
-    expect(processedEvents.has('event-002')).toBe(true);
-  });
-
-  it('should handle events with same attributes but different IDs correctly', () => {
-    const processedEvents = new Set<string>();
-    const event1 = {
-      id: 'event-abc',
-      tenantId: 'tenant-1',
-      eventType: 'PURCHASE',
-      amount: 7800,
-      counterparty: 'Starbucks',
-      occurredAt: new Date('2026-09-03')
-    };
-
-    const event2 = {
-      id: 'event-def', // Different ID
-      tenantId: 'tenant-1',
-      eventType: 'PURCHASE',
-      amount: 7800, // Same amount
-      counterparty: 'Starbucks', // Same counterparty
-      occurredAt: new Date('2026-09-03') // Same date
-    };
-
-    // Process first event
-    const result1 = processBusinessEvent(event1, processedEvents);
-    expect(result1.status).toBe('POSTED');
-
-    // Process second event (different ID but same attributes)
-    const result2 = processBusinessEvent(event2, processedEvents);
-    expect(result2.status).toBe('POSTED'); // Should be processed as different event
-
-    // Both events should be in the set
-    expect(processedEvents.size).toBe(2);
-    expect(processedEvents.has('event-abc')).toBe(true);
-    expect(processedEvents.has('event-def')).toBe(true);
+    expect(first.error).toBeUndefined();
+    expect(second.error).toBeUndefined();
+    expect(first.journal?.businessEventId).toBe(id('event-abc'));
+    expect(second.journal?.businessEventId).toBe(id('event-def'));
+    expect(first.postedJournal?.id).not.toBe(second.postedJournal?.id);
   });
 });

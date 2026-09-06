@@ -1,11 +1,18 @@
 import { z } from 'zod';
+import { parseDomain } from '../parse';
 
-export const EventType = z.enum([
+export const EVENT_TYPES = [
   'PURCHASE',
   'REFUND',
-  'PAYMENT'
-  // Future types: INVOICE, INVOICE_PAYMENT, SALE, RETURN, FEE, TAX, SALARY, DIVIDEND, etc.
-]);
+  'PAYMENT',
+  'USAGE',
+  'WALLET_LOAD',
+  'WALLET_SPEND',
+  'MARKETPLACE_SALE',
+  'SELLER_PAYOUT'
+] as const;
+
+export const EventType = z.enum(EVENT_TYPES);
 
 export type EventType = z.infer<typeof EventType>;
 
@@ -28,7 +35,7 @@ export const BusinessEventSchema = z.object({
 
   occurredAt: z.date(),
 
-  amount: z.number().positive().optional(), // Using number for simplicity in MVP, could use Decimal library
+  amount: z.number().finite().optional(),
   currency: z.string().length(3).optional(),
 
   counterparty: z.string().optional(),
@@ -43,7 +50,7 @@ export const BusinessEventSchema = z.object({
 export type BusinessEvent = z.infer<typeof BusinessEventSchema>;
 
 export const createBusinessEvent = (input: Omit<BusinessEvent, 'id' | 'createdAt' | 'attributes'> & Partial<Pick<BusinessEvent, 'id' | 'createdAt' | 'attributes'>>): BusinessEvent => {
-  return {
+  return parseDomain(BusinessEventSchema, {
     id: input.id ?? crypto.randomUUID(),
     tenantId: input.tenantId,
     eventType: input.eventType,
@@ -54,5 +61,5 @@ export const createBusinessEvent = (input: Omit<BusinessEvent, 'id' | 'createdAt
     attributes: input.attributes ?? {},
     source: input.source,
     createdAt: input.createdAt ?? new Date()
-  };
+  }, 'BusinessEvent');
 };

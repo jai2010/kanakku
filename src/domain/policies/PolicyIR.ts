@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AccountingTreatmentSchema } from '../accounting/AccountingTreatment';
 import { TreatmentLineSchema } from '../accounting/AccountingTreatment';
+import { parseDomain } from '../parse';
 
 // Define the condition operators
 export const ConditionOperator = z.enum([
@@ -35,25 +36,20 @@ export const ConditionSchema = z.object({
 
 export type Condition = z.infer<typeof ConditionSchema>;
 
-// Forward declaration for recursive type
-interface WhenClauseObject {}
+export type WhenClause =
+  | Condition
+  | { AND: WhenClause[] }
+  | { OR: WhenClause[] }
+  | { NOT: WhenClause };
 
-// Define the "when" clause (can be a single condition or a group with logical operators)
-// We use z.lazy() to handle the recursive type reference with proper typing
-export const WhenClauseSchema: z.ZodType<WhenClauseObject> = z.lazy(() =>
+export const WhenClauseSchema: z.ZodType<WhenClause> = z.lazy(() =>
   z.union([
-    ConditionSchema, // Single condition
-    z.object({
-      // For logical grouping
-      [LogicalOperator.enum.AND]: z.array(WhenClauseSchema),
-      [LogicalOperator.enum.OR]: z.array(WhenClauseSchema),
-      [LogicalOperator.enum.NOT]: WhenClauseSchema
-    })
+    ConditionSchema,
+    z.object({ AND: z.array(WhenClauseSchema) }).strict(),
+    z.object({ OR: z.array(WhenClauseSchema) }).strict(),
+    z.object({ NOT: WhenClauseSchema }).strict()
   ])
 );
-
-// Define the WhenClause type
-export type WhenClause = z.infer<typeof WhenClauseSchema>;
 
 // Define the "then" clause (accounting treatment)
 export const ThenClauseSchema = z.object({
@@ -80,7 +76,7 @@ export const PolicyIRSchema = z.object({
 export type PolicyIR = z.infer<typeof PolicyIRSchema>;
 
 export const createPolicyIR = (input: Omit<PolicyIR, 'rules'> & { rules: Rule[] }): PolicyIR => {
-  return {
+  return parseDomain(PolicyIRSchema, {
     rules: input.rules
-  };
+  }, 'PolicyIR');
 };

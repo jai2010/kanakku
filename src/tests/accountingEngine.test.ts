@@ -1,14 +1,15 @@
-import { AccountingEngine } from '../../domain/accounting/AccountingEngine';
-import { BusinessEvent } from '../../domain/events/BusinessEvent';
-import { Journal } from '../../domain/accounting/Journal';
-import { PostedJournal } from '../../domain/accounting/PostedJournal';
-import { AccountingEvaluation } from '../../domain/accounting/AccountingEvaluation';
-import { createAccount } from '../../domain/accounting/Account';
-import { PolicyVersion } from '../../domain/policies/PolicyVersion';
-import { PolicyIR } from '../../domain/policies/PolicyIR';
-import { Rule } from '../../domain/policies/PolicyIR';
-import { TreatmentLine } from '../../domain/accounting/AccountingTreatment';
-import { AmountExpression } from '../../domain/accounting/AccountingTreatment>;
+import { AccountingEngine } from '../domain/accounting/AccountingEngine';
+import { BusinessEvent } from '../domain/events/BusinessEvent';
+import { Journal } from '../domain/accounting/Journal';
+import { PostedJournal } from '../domain/accounting/PostedJournal';
+import { AccountingEvaluation } from '../domain/accounting/AccountingEvaluation';
+import { createAccount } from '../domain/accounting/Account';
+import { PolicyVersion } from '../domain/policies/PolicyVersion';
+import { PolicyIR } from '../domain/policies/PolicyIR';
+import { Rule } from '../domain/policies/PolicyIR';
+import { TreatmentLine } from '../domain/accounting/AccountingTreatment';
+import { AmountExpression } from '../domain/accounting/AccountingTreatment';
+import { ReversalResult } from '../domain/accounting/ReversalResult';
 
 // Mock implementation of the AccountingEngine for demonstration purposes
 class MockAccountingEngine implements AccountingEngine {
@@ -43,6 +44,7 @@ class MockAccountingEngine implements AccountingEngine {
     const policyVersion: PolicyVersion = {
       id: 'policy-version-id',
       policyId: 'test-policy-id',
+      tenantId: 'test-tenant-id',
       version: 1,
       effectiveFrom: new Date('2026-01-01'),
       status: 'ACTIVE',
@@ -52,11 +54,11 @@ class MockAccountingEngine implements AccountingEngine {
             id: 'rule-1',
             priority: 100,
             when: {
-              all: [
+              AND: [
                 {
                   field: 'eventType',
                   operator: 'equals',
-                  value: 'SALE'
+                  value: 'PURCHASE'
                 }
               ]
             },
@@ -91,7 +93,7 @@ class MockAccountingEngine implements AccountingEngine {
 
   async evaluate(event: BusinessEvent): Promise<AccountingEvaluation> {
     // Simple mock implementation - in reality this would evaluate rules
-    if (event.eventType === 'SALE') {
+    if (event.eventType === 'PURCHASE') {
       return {
         matched: true,
         policyVersionId: 'policy-version-id',
@@ -163,14 +165,22 @@ class MockAccountingEngine implements AccountingEngine {
     return postedJournal;
   }
 
-  async reverse(journalId: string, reason: string): Promise<{ success: boolean; message: string }> {
+  async reverse(journalId: string, reason: string): Promise<ReversalResult> {
     const journal = this.journals.get(journalId);
     if (!journal) {
-      return { success: false, message: 'Journal not found' };
+      return {
+        status: 'JOURNAL_NOT_FOUND',
+        originalJournalId: journalId,
+        message: 'Journal not found'
+      };
     }
 
     if (journal.status !== 'POSTED') {
-      return { success: false, message: 'Only posted journals can be reversed' };
+      return {
+        status: 'JOURNAL_NOT_POSTED',
+        originalJournalId: journalId,
+        message: 'Only posted journals can be reversed'
+      };
     }
 
     // In a real system, we would create a reversal journal
@@ -178,7 +188,11 @@ class MockAccountingEngine implements AccountingEngine {
     journal.status = 'REVERSED';
     this.journals.set(journalId, journal);
 
-    return { success: true, message: 'Journal reversed successfully' };
+    return {
+      status: 'SUCCESS',
+      originalJournalId: journalId,
+      message: 'Journal reversed successfully'
+    };
   }
 }
 
@@ -192,7 +206,7 @@ async function testAccountingEngine() {
   const saleEvent: BusinessEvent = {
     id: 'business-event-id',
     tenantId: 'test-tenant-id',
-    eventType: 'SALE',
+    eventType: 'PURCHASE',
     occurredAt: new Date('2026-09-03'),
     amount: 1000,
     currency: 'USD',
@@ -256,7 +270,7 @@ async function testAccountingEngine() {
     // Test reversal
     console.log('5. Testing journal reversal:');
     const reversalResult = await engine.reverse(postedJournal.id, 'Test reversal');
-    console.log(`   Success: ${reversalResult.success}`);
+    console.log(`   Status: ${reversalResult.status}`);
     console.log(`   Message: ${reversalResult.message}\n`);
   }
 

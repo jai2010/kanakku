@@ -1,1 +1,26 @@
 node_modules/
+.env
+.env.local
+.env*.local
+dist/
+.next/
+.DS_Store
+*.tsbuildinfo
+.serena/
+omniroute-test.txt
+test.txt
+
+# local session notes, not product docs
+TASK_*.md
+COMPLETION_*.md
+DONE.md
+FINAL_*.md
+FIXES_SUMMARY.md
+SUMMARY.md
+TEST_FIXES_COMPLETE.md
+TEST_RESULT.md
+TEST_RESULTS_SUMMARY.md
+TESTING_COMPLETE.md
+KERNEL_HARDENING_AUDIT.md
+
+

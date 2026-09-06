@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseDomain } from '../parse';
 
 export const PolicyStatus = z.enum([
   'DRAFT',
@@ -22,11 +23,11 @@ export const PolicySchema = z.object({
 export type Policy = z.infer<typeof PolicySchema>;
 
 export const createPolicy = (input: Omit<Policy, 'id' | 'createdAt'> & Partial<Pick<Policy, 'id' | 'createdAt'>>): Policy => {
-  return {
+  return parseDomain(PolicySchema, {
     id: input.id ?? crypto.randomUUID(),
     tenantId: input.tenantId,
     name: input.name,
     description: input.description,
     createdAt: input.createdAt ?? new Date()
-  };
+  }, 'Policy');
 };

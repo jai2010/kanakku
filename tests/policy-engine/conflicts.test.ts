@@ -1,172 +1,201 @@
-// Tests for policy conflict detection
+import { id } from '../fixtures/ids';
+import { PolicyEngineService } from '../../src/application/policies/PolicyEngineService';
+import { AccountingEngineService } from '../../src/application/accounting/AccountingEngineService';
+import { InMemoryAccountRepository } from '../../src/infrastructure/memory/InMemoryAccountRepository';
+import { InMemoryJournalRepository } from '../../src/infrastructure/memory/InMemoryJournalRepository';
+import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { PolicyVersion } from '../../src/domain/policies/PolicyVersion';
+import { BusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { Rule } from '../../src/domain/policies/PolicyIR';
 
-describe('Policy Engine - Conflict Detection', () => {
-  // In a real implementation, this would be part of policy validation
-  const hasConflictingRules = (policyVersion: any) => {
-    // Group rules by their conditions to detect conflicts
-    // For simplicity, we'll check if two rules with same priority have overlapping conditions
-    // A real implementation would be more sophisticated
+describe('Policy Engine - Conflict Detection (Production)', () => {
+  let policyEngine: PolicyEngineService;
+  let accountingEngine: AccountingEngineService;
 
-    const rulesByPriority: Record<number, any[]> = {};
-
-    for (const rule of policyVersion.definition.rules) {
-      if (!rulesByPriority[rule.priority]) {
-        rulesByPriority[rule.priority] = [];
+  beforeEach(() => {
+    policyEngine = new PolicyEngineService();
+    accountingEngine = new AccountingEngineService({
+      dependencies: {
+        accountRepository: new InMemoryAccountRepository(),
+        journalRepository: new InMemoryJournalRepository()
       }
-      rulesByPriority[rule.priority].push(rule);
-    }
-
-    // Check each priority level for potential conflicts
-    for (const priority in rulesByPriority) {
-      const rules = rulesByPriority[priority];
-      if (rules.length > 1) {
-        // In a real system, we'd do more sophisticated condition analysis
-        // For this test, we'll flag any priority with multiple rules as potentially conflicting
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  it('should detect conflicting rules with same priority', () => {
-    const policyVersion = {
-      id: 'pv-1',
-      definition: {
-        rules: [
-          {
-            id: 'rule-a',
-            priority: 100,
-            when: {
-              field: 'counterparty',
-              operator: 'equals',
-              value: 'Starbucks'
-            },
-            then: {
-              treatment: {
-                lines: [
-                  { accountId: 'acc-1', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-2', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-                ]
-              }
-            }
-          },
-          {
-            id: 'rule-b',
-            priority: 100, // Same priority as rule-a - potential conflict
-            when: {
-              field: 'counterparty',
-              operator: 'equals',
-              value: 'Starbucks'
-            },
-            then: {
-              treatment: {
-                lines: [
-                  { accountId: 'acc-3', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-4', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-                ]
-              }
-            }
-          }
-        ]
-      }
-    };
-
-    expect(hasConflictingRules(policyVersion)).toBe(true);
+    });
   });
 
-  it('should not flag rules with different priorities as conflicting', () => {
-    const policyVersion = {
-      id: 'pv-2',
-      definition: {
-        rules: [
-          {
-            id: 'rule-a',
-            priority: 100,
-            when: {
-              field: 'counterparty',
-              operator: 'equals',
-              value: 'Starbucks'
-            },
-            then: {
-              treatment: {
-                lines: [
-                  { accountId: 'acc-1', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-2', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-                ]
-              }
-            }
-          },
-          {
-            id: 'rule-b',
-            priority: 200, // Different priority
-            when: {
-              field: 'counterparty',
-              operator: 'equals',
-              value: 'Starbucks'
-            },
-            then: {
-              treatment: {
-                lines: [
-                  { accountId: 'acc-3', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-4', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-                ]
-              }
-            }
-          }
-        ]
-      }
-    };
+  function purchaseEvent(): BusinessEvent {
+    return createBusinessEvent({
+      id: id('evt-conflict'),
+      tenantId: id('tenant-1'),
+      eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount: 7800,
+      currency: 'INR',
+      counterparty: 'Starbucks',
+      attributes: {}
+    });
+  }
 
-    expect(hasConflictingRules(policyVersion)).toBe(false);
+  function twoLineTreatment(debitAccountId: string, creditAccountId: string) {
+    return {
+      lines: [
+        { accountId: id(debitAccountId), side: 'DEBIT' as const, amount: { type: 'EVENT_AMOUNT' as const } },
+        { accountId: id(creditAccountId), side: 'CREDIT' as const, amount: { type: 'EVENT_AMOUNT' as const } }
+      ]
+    };
+  }
+
+  function policyWithRules(policyVersionId: string, rules: Rule[]): PolicyVersion {
+    return createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id(policyVersionId),
+      policyId: id('pol-conflict'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: { rules }
+    });
+  }
+
+  it('detects conflicting matched rules at the same priority', () => {
+    const event = purchaseEvent();
+    const policyVersion = policyWithRules('pv-same-priority', [
+      {
+        id: id('rule-a'),
+        priority: 100,
+        when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+        then: { treatment: twoLineTreatment('acc-1', 'acc-2') }
+      },
+      {
+        id: id('rule-b'),
+        priority: 100,
+        when: { field: 'counterparty', operator: 'equals', value: 'Starbucks' },
+        then: { treatment: twoLineTreatment('acc-3', 'acc-4') }
+      }
+    ]);
+
+    const result = policyEngine.evaluate(event, policyVersion);
+
+    expect(result.matched).toBe(true);
+    expect(result.selectedRuleId).toBeNull();
+    expect(result.reason).toBe('POLICY_INVALID_CONFLICTING_RULES');
+    expect(result.matchedRuleIds).toEqual([id('rule-a'), id('rule-b')]);
   });
 
-  it('should handle complex conditions in conflict detection (simplified)', () => {
-    const policyVersion = {
-      id: 'pv-3',
-      definition: {
-        rules: [
-          {
-            id: 'rule-a',
-            priority: 100,
-            when: {
-              all: [
-                { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
-                { field: 'counterparty', operator: 'equals', value: 'Starbucks' }
-              ]
-            },
-            then: {
-              treatment: {
-                lines: [
-                  { accountId: 'acc-1', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-2', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-                ]
-              }
-            }
-          },
-          {
-            id: 'rule-b',
-            priority: 100, // Same priority
-            when: {
-              all: [
-                { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
-                { field: 'counterparty', operator: 'equals', value: 'Starbucks' },
-                { field: 'amount', operator: 'greater_than', value: 5000 }
-              ]
-            },
-            then: {
-              treatment: {
-                lines: [
-                  { accountId: 'acc-3', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-4', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-                ]
-              }
-            }
-          }
-        ]
+  it('does not flag same-priority rules as a conflict when only one matches', () => {
+    const event = purchaseEvent();
+    const policyVersion = policyWithRules('pv-same-priority-one-match', [
+      {
+        id: id('rule-purchase'),
+        priority: 100,
+        when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+        then: { treatment: twoLineTreatment('acc-1', 'acc-2') }
+      },
+      {
+        id: id('rule-refund'),
+        priority: 100,
+        when: { field: 'eventType', operator: 'equals', value: 'REFUND' },
+        then: { treatment: twoLineTreatment('acc-3', 'acc-4') }
       }
-    };
+    ]);
 
-    expect(hasConflictingRules(policyVersion)).toBe(true);
+    const result = policyEngine.evaluate(event, policyVersion);
+
+    expect(result.matched).toBe(true);
+    expect(result.reason).toBe('MATCHED_RULE');
+    expect(result.selectedRuleId).toBe(id('rule-purchase'));
+    expect(result.matchedRuleIds).toEqual([id('rule-purchase')]);
+  });
+
+  it('does not flag overlapping matched rules at different priorities as a conflict', () => {
+    const event = purchaseEvent();
+    const policyVersion = policyWithRules('pv-different-priority', [
+      {
+        id: id('rule-low'),
+        priority: 100,
+        when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+        then: { treatment: twoLineTreatment('acc-1', 'acc-2') }
+      },
+      {
+        id: id('rule-high'),
+        priority: 200,
+        when: { field: 'counterparty', operator: 'equals', value: 'Starbucks' },
+        then: { treatment: twoLineTreatment('acc-3', 'acc-4') }
+      }
+    ]);
+
+    const result = policyEngine.evaluate(event, policyVersion);
+
+    expect(result.matched).toBe(true);
+    expect(result.reason).toBe('MATCHED_RULE');
+    expect(result.selectedRuleId).toBe(id('rule-high'));
+    expect(result.matchedRuleIds).toEqual([id('rule-low'), id('rule-high')]);
+  });
+
+  it('detects conflict when overlapping AND conditions both match at the same priority', () => {
+    const event = purchaseEvent();
+    const policyVersion = policyWithRules('pv-overlapping-and', [
+      {
+        id: id('rule-a'),
+        priority: 100,
+        when: {
+          AND: [
+            { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+            { field: 'counterparty', operator: 'equals', value: 'Starbucks' }
+          ]
+        },
+        then: { treatment: twoLineTreatment('acc-1', 'acc-2') }
+      },
+      {
+        id: id('rule-b'),
+        priority: 100,
+        when: {
+          AND: [
+            { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+            { field: 'amount', operator: 'greater_than', value: 5000 }
+          ]
+        },
+        then: { treatment: twoLineTreatment('acc-3', 'acc-4') }
+      }
+    ]);
+
+    const result = policyEngine.evaluate(event, policyVersion);
+
+    expect(result.matched).toBe(true);
+    expect(result.selectedRuleId).toBeNull();
+    expect(result.reason).toBe('POLICY_INVALID_CONFLICTING_RULES');
+    expect(result.matchedRuleIds).toEqual([id('rule-a'), id('rule-b')]);
+  });
+
+  it('propagates policy-engine conflict through the accounting evaluation boundary', async () => {
+    const event = purchaseEvent();
+    const policyVersion = policyWithRules('pv-propagated-conflict', [
+      {
+        id: id('rule-a'),
+        priority: 100,
+        when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+        then: { treatment: twoLineTreatment('acc-1', 'acc-2') }
+      },
+      {
+        id: id('rule-b'),
+        priority: 100,
+        when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+        then: { treatment: twoLineTreatment('acc-3', 'acc-4') }
+      }
+    ]);
+
+    const policyResult = policyEngine.evaluate(event, policyVersion);
+    expect(policyResult.reason).toBe('POLICY_INVALID_CONFLICTING_RULES');
+    expect(policyResult.matched).toBe(true);
+    expect(policyResult.selectedRuleId).toBeNull();
+
+    const accountingResult = await accountingEngine.evaluateWithPolicyVersion(event, policyVersion);
+
+    expect(accountingResult.matched).toBe(true);
+    expect(accountingResult.reason).toBe('POLICY_INVALID_CONFLICTING_RULES');
+    expect(accountingResult.reason).not.toBe('NO_MATCHING_RULE');
+    expect(accountingResult.selectedRuleId).toBeUndefined();
+    expect(accountingResult.matchedRuleIds).toEqual([id('rule-a'), id('rule-b')]);
+    expect(accountingResult.policyVersionId).toBe(policyVersion.id);
   });
 });

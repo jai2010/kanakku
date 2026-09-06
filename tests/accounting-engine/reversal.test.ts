@@ -1,254 +1,208 @@
-// Tests for accounting engine reversal functionality
+import { id } from '../fixtures/ids';
+import { AccountingService } from '../../src/application/accounting/AccountingService';
+import { AccountingEngineService } from '../../src/application/accounting/AccountingEngineService';
+import { InMemoryAccountRepository } from '../../src/infrastructure/memory/InMemoryAccountRepository';
+import { InMemoryPolicyVersionRepository } from '../../src/infrastructure/memory/InMemoryPolicyVersionRepository';
+import { InMemoryJournalRepository } from '../../src/infrastructure/memory/InMemoryJournalRepository';
+import { createAccount } from '../../src/domain/accounting/Account';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
+import { PostedJournal } from '../../src/domain/accounting/PostedJournal';
 
-describe('Accounting Engine - Reversal', () => {
-  // Mock journal structure
-  type Journal = {
-    id: string;
-    tenantId: string;
-    businessEventId: string;
-    accountingTransactionId: string;
-    policyVersionId: string | null;
-    ruleId: string | null;
-    transactionDate: Date;
-    currency: string;
-    description: string;
-    lines: {
-      id: string;
-      journalId: string;
-      accountId: string;
-      debit: number;
-      credit: number;
-      currency: string;
-      description?: string;
-    }[];
-    status: 'DRAFT' | 'POSTED' | 'REVERSED';
-    createdAt: Date;
-    postedAt?: Date;
-  };
+describe('Accounting Engine - Reversal (Production)', () => {
+  let accountingService: AccountingService;
+  let accountingEngine: AccountingEngineService;
+  let accountRepository: InMemoryAccountRepository;
+  let policyVersionRepository: InMemoryPolicyVersionRepository;
+  let journalRepository: InMemoryJournalRepository;
 
-  // Mock reversal result
-  type ReversalResult = {
-    status: 'SUCCESS' | 'JOURNAL_NOT_FOUND' | 'JOURNAL_NOT_POSTED' | 'ALREADY_REVERSED' | 'REVERSAL_FAILED';
-    reversalJournalId: string | null;
-    originalJournalId: string;
-    message: string;
-  };
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    policyVersionRepository = new InMemoryPolicyVersionRepository();
+    journalRepository = new InMemoryJournalRepository();
+    accountingEngine = new AccountingEngineService({
+      dependencies: {
+        accountRepository,
+        journalRepository
+      }
+    });
+    accountingService = new AccountingService({
+      policyVersionRepository,
+      accountRepository,
+      journalRepository
+    });
 
-  // Mock function to create a reversal journal
-  const createReversalJournal = (originalJournal: Journal): Journal => {
-    const reversalLines = originalJournal.lines.map(line => ({
-      id: `reversal-${line.id}`,
-      journalId: `reversal-${originalJournal.id}`,
-      accountId: line.accountId,
-      debit: line.credit, // Swap debit and credit
-      credit: line.debit, // Swap debit and credit
-      currency: line.currency,
-      description: line.description ? `Reversal: ${line.description}` : undefined
+    accountRepository.add(createAccount({
+      id: id('acc-expenses'),
+      tenantId: id('tenant-1'),
+      code: '5000',
+      name: 'Expenses',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    }));
+    accountRepository.add(createAccount({
+      id: id('acc-cash'),
+      tenantId: id('tenant-1'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
     }));
 
-    return {
-      id: `reversal-${originalJournal.id}`,
-      tenantId: originalJournal.tenantId,
-      businessEventId: originalJournal.businessEventId,
-      accountingTransactionId: `${originalJournal.accountingTransactionId}-reversal`,
-      policyVersionId: originalJournal.policyVersionId,
-      ruleId: originalJournal.ruleId,
-      transactionDate: originalJournal.transactionDate,
-      currency: originalJournal.currency,
-      description: `Reversal of ${originalJournal.description}`,
-      lines: reversalLines,
-      status: 'POSTED' as const,
-      createdAt: new Date(),
-      postedAt: new Date()
-    };
-  };
+    policyVersionRepository.add(createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-reversal'),
+      policyId: id('pol-reversal'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('rule-reversal'),
+            priority: 100,
+            when: { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
+            then: {
+              treatment: {
+                lines: [
+                  {
+                    accountId: id('acc-expenses'),
+                    side: 'DEBIT',
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Business Meals Expense'
+                  },
+                  {
+                    accountId: id('acc-cash'),
+                    side: 'CREDIT',
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Cash Payment'
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }));
+  });
 
-  // Mock function to reverse a journal
-  const reverseJournal = (journalId: string, journals: Map<string, Journal>, reason: string): ReversalResult => {
-    const journal = journals.get(journalId);
+  afterEach(() => {
+    accountRepository.clear();
+    policyVersionRepository.clear();
+    journalRepository.clear();
+  });
 
-    if (!journal) {
-      return {
-        status: 'JOURNAL_NOT_FOUND',
-        reversalJournalId: null,
-        originalJournalId: journalId,
-        message: 'Journal not found'
-      };
-    }
-
-    if (journal.status === 'REVERSED') {
-      return {
-        status: 'ALREADY_REVERSED',
-        reversalJournalId: null,
-        originalJournalId: journalId,
-        message: 'Journal has already been reversed'
-      };
-    }
-
-    if (journal.status !== 'POSTED') {
-      return {
-        status: 'JOURNAL_NOT_POSTED',
-        reversalJournalId: null,
-        originalJournalId: journalId,
-        message: 'Only posted journals can be reversed'
-      };
-    }
-
-    // Create reversal journal
-    const reversalJournal = createReversalJournal(journal);
-
-    // Mark original as reversed (in a real system, we'd keep it immutable and just mark it)
-    journal.status = 'REVERSED';
-    journals.set(journalId, journal);
-
-    // Store the reversal journal
-    journals.set(reversalJournal.id, reversalJournal);
-
-    return {
-      status: 'SUCCESS',
-      reversalJournalId: reversalJournal.id,
-      originalJournalId: journalId,
-      message: 'Journal reversed successfully'
-    };
-  };
-
-  const setupTestJournal = (): Journal => {
-    return {
-      id: 'journal-123',
-      tenantId: 'tenant-1',
-      businessEventId: 'event-123',
-      accountingTransactionId: 'txn-123',
-      policyVersionId: 'pv-123',
-      ruleId: 'rule-123',
-      transactionDate: new Date('2026-09-03'),
+  async function postPurchase(): Promise<PostedJournal> {
+    const result = await accountingService.processEvent(createBusinessEvent({
+      id: id('event-123'),
+      tenantId: id('tenant-1'),
+      eventType: 'PURCHASE',
+      occurredAt: new Date('2026-09-03'),
+      amount: 7800,
       currency: 'INR',
-      description: 'Original business transaction',
-      lines: [
-        {
-          id: 'line-1',
-          journalId: 'journal-123',
-          accountId: 'acc-expenses',
-          debit: 7800,
-          credit: 0,
-          currency: 'INR',
-          description: 'Business Meals Expense'
-        },
-        {
-          id: 'line-2',
-          journalId: 'journal-123',
-          accountId: 'acc-cash',
-          debit: 0,
-          credit: 7800,
-          currency: 'INR',
-          description: 'Cash Payment'
-        }
-      ],
-      status: 'POSTED' as const,
-      createdAt: new Date('2026-09-03T10:00:00Z'),
-      postedAt: new Date('2026-09-03T10:00:00Z')
-    };
-  };
+      attributes: {}
+    }));
 
-  it('should successfully reverse a posted journal', () => {
-    const journals = new Map<string, Journal>();
-    const originalJournal = setupTestJournal();
-    journals.set(originalJournal.id, originalJournal);
+    if (!result.postedJournal) {
+      throw new Error(`Expected posted journal, got error: ${result.error}`);
+    }
+    return result.postedJournal;
+  }
 
-    const result = reverseJournal(originalJournal.id, journals, 'Test reversal');
+  it('posts and persists a reversal, and marks the original REVERSED', async () => {
+    const posted = await postPurchase();
+
+    const result = await accountingEngine.reversePostedJournal(posted, 'Test reversal', posted.tenantId);
 
     expect(result.status).toBe('SUCCESS');
+    expect(result.message).toBe('Reversal journal generated successfully');
+    expect(result.originalJournalId).toBe(posted.id);
+    expect(result.reversalJournalId).toBeDefined();
+    expect(result.reversalJournalId).not.toBe(posted.id);
+
+    const storedOriginal = await journalRepository.getPostedJournal(posted.id);
+    expect(storedOriginal?.status).toBe('REVERSED');
+    expect(storedOriginal?.lines.find((line) => line.accountId === id('acc-expenses'))?.debit).toBe(7800);
+    expect(storedOriginal?.lines.find((line) => line.accountId === id('acc-cash'))?.credit).toBe(7800);
+
+    const reversalId = result.reversalJournalId;
+    expect(reversalId).toBeDefined();
+    if (reversalId === undefined) {
+      return;
+    }
+
+    const storedReversal = await journalRepository.getPostedJournal(reversalId);
+    expect(storedReversal).not.toBeNull();
+    expect(storedReversal?.status).toBe('POSTED');
+    expect(storedReversal?.businessEventId).toBe(posted.businessEventId);
+    expect(storedReversal?.description).toBe(`Reversal of journal ${posted.id}`);
+    expect(storedReversal?.lines.find((line) => line.accountId === id('acc-expenses'))?.credit).toBe(7800);
+    expect(storedReversal?.lines.find((line) => line.accountId === id('acc-expenses'))?.debit).toBe(0);
+    expect(storedReversal?.lines.find((line) => line.accountId === id('acc-cash'))?.debit).toBe(7800);
+    expect(storedReversal?.lines.find((line) => line.accountId === id('acc-cash'))?.credit).toBe(0);
+  });
+
+  it('AccountingService.reverseJournal loads the persisted posted journal after processEvent', async () => {
+    const posted = await postPurchase();
+
+    const result = await accountingService.reverseJournal(posted.id, 'Test reversal', posted.tenantId);
+
+    expect(result.success).toBe(true);
+    expect(result.message).toBe('Reversal journal generated successfully');
     expect(result.reversalJournalId).not.toBeNull();
-    expect(result.originalJournalId).toBe('journal-123');
-    expect(result.message).toBe('Journal reversed successfully');
+    expect(result.originalJournalId).toBe(posted.id);
 
-    // Verify original journal is marked as reversed
-    const reversedOriginal = journals.get('journal-123');
-    expect(reversedOriginal?.status).toBe('REVERSED');
+    const storedOriginal = await journalRepository.getPostedJournal(posted.id);
+    expect(storedOriginal?.status).toBe('REVERSED');
 
-    // Verify reversal journal exists and is posted
-    const reversalJournal = journals.get(result.reversalJournalId!);
-    expect(reversalJournal).not.toBeNull();
-    expect(reversalJournal?.status).toBe('POSTED');
-    expect(reversalJournal?.description).toContain('Reversal of');
+    const reversalId = result.reversalJournalId;
+    if (reversalId) {
+      const storedReversal = await journalRepository.getPostedJournal(reversalId);
+      expect(storedReversal?.status).toBe('POSTED');
+    }
   });
 
-  it('should correctly swap debits and credits in reversal journal', () => {
-    const journals = new Map<string, Journal>();
-    const originalJournal = setupTestJournal();
-    journals.set(originalJournal.id, originalJournal);
-
-    const result = reverseJournal(originalJournal.id, journals, 'Test reversal');
-    const reversalJournal = journals.get(result.reversalJournalId!)!;
-
-    // Original: DR Expenses 7800, CR Cash 7800
-    // Reversal: DR Cash 7800, CR Expenses 7800
-
-    const reversalExpenseLine = reversalJournal.lines.find(l => l.accountId === 'acc-expenses');
-    const reversalCashLine = reversalJournal.lines.find(l => l.accountId === 'acc-cash');
-
-    expect(reversalExpenseLine?.debit).toBe(0); // Was 7800 debit, now 0
-    expect(reversalExpenseLine?.credit).toBe(7800); // Was 0 credit, now 7800
-
-    expect(reversalCashLine?.debit).toBe(7800); // Was 0 debit, now 7800
-    expect(reversalCashLine?.credit).toBe(0); // Was 7800 credit, now 0
-  });
-
-  it('should reject reversal of non-existent journal', () => {
-    const journals = new Map<string, Journal>();
-
-    const result = reverseJournal('non-existent-journal', journals, 'Test reversal');
+  it('rejects reversal of a missing journal', async () => {
+    const result = await accountingEngine.reverse(id('missing-journal-id'), 'Test reversal', id('tenant-1'));
 
     expect(result.status).toBe('JOURNAL_NOT_FOUND');
-    expect(result.reversalJournalId).toBeNull();
-    expect(result.originalJournalId).toBe('non-existent-journal');
+    expect(result.reversalJournalId).toBeUndefined();
+    expect(result.originalJournalId).toBe(id('missing-journal-id'));
     expect(result.message).toBe('Journal not found');
   });
 
-  it('should reject reversal of unposted journal', () => {
-    const journals = new Map<string, Journal>();
-    const originalJournal = setupTestJournal();
-    originalJournal.status = 'DRAFT' as const; // Make it unposted
-    journals.set(originalJournal.id, originalJournal);
+  it('rejects reversal of a journal that is not POSTED', async () => {
+    const posted = await postPurchase();
+    await journalRepository.savePostedJournal({
+      ...posted,
+      lines: posted.lines.map((line) => ({ ...line })),
+      status: 'DRAFT'
+    });
 
-    const result = reverseJournal(originalJournal.id, journals, 'Test reversal');
+    const result = await accountingEngine.reverse(posted.id, 'Test reversal', posted.tenantId);
 
     expect(result.status).toBe('JOURNAL_NOT_POSTED');
-    expect(result.reversalJournalId).toBeNull();
-    expect(result.originalJournalId).toBe('journal-123');
+    expect(result.reversalJournalId).toBeUndefined();
+    expect(result.originalJournalId).toBe(posted.id);
     expect(result.message).toBe('Only posted journals can be reversed');
+    expect(await journalRepository.getPostedJournal(posted.id)).toMatchObject({ status: 'DRAFT' });
   });
 
-  it('should reject reversal of already reversed journal', () => {
-    const journals = new Map<string, Journal>();
-    const originalJournal = setupTestJournal();
-    originalJournal.status = 'REVERSED' as const; // Already reversed
-    journals.set(originalJournal.id, originalJournal);
+  it('rejects a second reversal of the same posted journal', async () => {
+    const posted = await postPurchase();
 
-    const result = reverseJournal(originalJournal.id, journals, 'Test reversal');
+    const first = await accountingEngine.reversePostedJournal(posted, 'First reversal', posted.tenantId);
+    const second = await accountingEngine.reversePostedJournal(posted, 'Second reversal', posted.tenantId);
 
-    expect(result.status).toBe('ALREADY_REVERSED');
-    expect(result.reversalJournalId).toBeNull();
-    expect(result.originalJournalId).toBe('journal-123');
-    expect(result.message).toBe('Journal has already been reversed');
-  });
+    expect(first.status).toBe('SUCCESS');
+    expect(second.status).toBe('ALREADY_REVERSED');
+    expect(second.message).toBe('Journal has already been reversed');
+    expect(second.reversalJournalId).toBeUndefined();
+    expect(second.originalJournalId).toBe(posted.id);
 
-  it('should preserve audit trail in reversal', () => {
-    const journals = new Map<string, Journal>();
-    const originalJournal = setupTestJournal();
-    journals.set(originalJournal.id, originalJournal);
-
-    const result = reverseJournal(originalJournal.id, journals, 'Test reversal');
-    const reversalJournal = journals.get(result.reversalJournalId!)!;
-
-    // Verify reversal journal references original
-    expect(reversalJournal.businessEventId).toBe(originalJournal.businessEventId);
-    expect(reversalJournal.accountingTransactionId).toContain('-reversal');
-    expect(reversalJournal.description).toContain(`Reversal of ${originalJournal.description}`);
-
-    // Verify line-level audit trail
-    const originalExpenseLine = originalJournal.lines.find(l => l.accountId === 'acc-expenses');
-    const reversalExpenseLine = reversalJournal.lines.find(l => l.accountId === 'acc-expenses');
-
-    expect(reversalExpenseLine?.description).toContain(`Reversal: ${originalExpenseLine?.description}`);
+    const stored = await journalRepository.findByBusinessEventId(posted.businessEventId, id('tenant-1'));
+    const reversals = stored.filter((journal) => journal.description.startsWith('Reversal of journal '));
+    expect(reversals).toHaveLength(1);
+    expect(reversals[0].id).toBe(first.reversalJournalId);
   });
 });

@@ -1,93 +1,40 @@
-// Tests for rule priority logic
-
-import { createAccount } from '../../src/domain/accounting/Account';
-import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { id } from '../fixtures/ids';
+import { PolicyEngineService } from '../../src/application/policies/PolicyEngineService';
 import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
-import { PolicyIR } from '../../src/domain/policies/PolicyIR';
-import { Rule } from '../../src/domain/policies/PolicyIR';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
 import { AccountingTreatment } from '../../src/domain/accounting/AccountingTreatment';
 import { TreatmentLine } from '../../src/domain/accounting/AccountingTreatment';
 import { AmountExpression } from '../../src/domain/accounting/AccountingTreatment';
 
 describe('Policy Engine - Rule Priority', () => {
-  // Mock evaluation function (same as in rule-evaluation.test.ts)
-  const evaluateRules = (event: any, policyVersion: any) => {
-    const matchedRules: string[] = [];
-    let selectedRuleId: string | undefined;
-    let highestPriority = -Infinity;
+  let policyEngine: PolicyEngineService;
 
-    for (const rule of policyVersion.definition.rules) {
-      if (evaluateCondition(rule.when, event)) {
-        matchedRules.push(rule.id);
-        if (rule.priority > highestPriority) {
-          highestPriority = rule.priority;
-          selectedRuleId = rule.id;
-        }
-      }
-    }
-
-    return {
-      matched: matchedRules.length > 0,
-      matchedRuleIds: matchedRules,
-      selectedRuleId,
-      reason: matchedRules.length > 0 ? 'MATCHED_RULE' : 'NO_MATCHING_RULE'
-    };
-  };
-
-  const evaluateCondition = (condition: any, event: any): boolean => {
-    if (condition.field && condition.operator && condition.value !== undefined) {
-      // Simple condition
-      return evaluateSimpleCondition(condition, event);
-    } else {
-      // Logical grouping: we expect one of 'all', 'any', 'not'
-      if (condition.all) {
-        // AND: all subconditions must be true
-        for (const subcondition of condition.all) {
-          if (!evaluateCondition(subcondition, event)) return false;
-        }
-        return true;
-      } else if (condition.any) {
-        // OR: at least one subcondition must be true
-        for (const subcondition of condition.any) {
-          if (evaluateCondition(subcondition, event)) return true;
-        }
-        return false;
-      } else if (condition.not) {
-        // NOT: invert the result of the subcondition
-        return !evaluateCondition(condition.not, event);
-      }
-    }
-    return false;
-  };
-
-  const evaluateSimpleCondition = (condition: any, event: any): boolean => {
-    const eventValue: any = (event as any)[condition.field];
-    switch (condition.operator) {
-      case 'equals': return eventValue === condition.value;
-      case 'not_equals': return eventValue !== condition.value;
-      case 'greater_than': return eventValue > condition.value;
-      case 'greater_than_or_equal': return eventValue >= condition.value;
-      case 'less_than': return eventValue < condition.value;
-      case 'less_than_or_equal': return eventValue <= condition.value;
-      case 'in': return Array.isArray(condition.value) && condition.value.includes(eventValue);
-      case 'not_in': return !Array.isArray(condition.value) || !condition.value.includes(eventValue);
-      case 'exists': return eventValue !== undefined && eventValue !== null;
-      default: return false;
-    }
-  };
+  beforeEach(() => {
+    policyEngine = new PolicyEngineService();
+  });
 
   it('should select the rule with the highest priority when multiple match', () => {
-    const event = {
+    const event = createBusinessEvent({
+      id: id('evt-highest-priority'),
+      tenantId: id('tenant-1'),
       eventType: 'PURCHASE',
-      amount: 10000
-    };
+      occurredAt: new Date('2026-09-03'),
+      amount: 10000,
+      currency: 'USD',
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-1',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-1'),
+      policyId: id('pol-1'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-low-priority',
+            id: id('rule-low-priority'),
             priority: 50,
             when: {
               field: 'eventType',
@@ -97,14 +44,14 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-1', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-2', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-1'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-2'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           },
           {
-            id: 'rule-medium-priority',
+            id: id('rule-medium-priority'),
             priority: 75,
             when: {
               field: 'eventType',
@@ -114,14 +61,14 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-3', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-4', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-3'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-4'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           },
           {
-            id: 'rule-high-priority',
+            id: id('rule-high-priority'),
             priority: 100,
             when: {
               field: 'eventType',
@@ -131,38 +78,48 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-5', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-6', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-5'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-6'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(true);
-    expect(result.selectedRuleId).toBe('rule-high-priority');
+    expect(result.selectedRuleId).toBe(id('rule-high-priority'));
     expect(result.matchedRuleIds).toEqual([
-      'rule-low-priority',
-      'rule-medium-priority',
-      'rule-high-priority'
+      id('rule-low-priority'),
+      id('rule-medium-priority'),
+      id('rule-high-priority')
     ]);
   });
 
   it('should select the correct rule when priorities are not in order', () => {
-    const event = {
+    const event = createBusinessEvent({
+      id: id('evt-unordered-priority'),
+      tenantId: id('tenant-1'),
       eventType: 'PURCHASE',
-      amount: 10000
-    };
+      occurredAt: new Date('2026-09-03'),
+      amount: 10000,
+      currency: 'USD',
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-2',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-2'),
+      policyId: id('pol-2'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-b',
+            id: id('rule-b'),
             priority: 200,
             when: {
               field: 'eventType',
@@ -172,14 +129,14 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-1', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-2', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-1'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-2'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           },
           {
-            id: 'rule-a',
+            id: id('rule-a'),
             priority: 100,
             when: {
               field: 'eventType',
@@ -189,33 +146,43 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-3', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-4', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-3'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-4'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(true);
-    expect(result.selectedRuleId).toBe('rule-b'); // Higher priority (200 > 100)
+    expect(result.selectedRuleId).toBe(id('rule-b')); // Higher priority (200 > 100)
   });
 
   it('should handle negative priorities correctly', () => {
-    const event = {
+    const event = createBusinessEvent({
+      id: id('evt-negative-priority'),
+      tenantId: id('tenant-1'),
       eventType: 'PURCHASE',
-      amount: 10000
-    };
+      occurredAt: new Date('2026-09-03'),
+      amount: 10000,
+      currency: 'USD',
+      attributes: {}
+    });
 
-    const policyVersion = {
-      id: 'pv-3',
+    const policyVersion = createPolicyVersion({
+      tenantId: id('tenant-1'),
+      id: id('pv-3'),
+      policyId: id('pol-3'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
       definition: {
         rules: [
           {
-            id: 'rule-negative',
+            id: id('rule-negative'),
             priority: -100,
             when: {
               field: 'eventType',
@@ -225,14 +192,14 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-1', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-2', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-1'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-2'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           },
           {
-            id: 'rule-zero',
+            id: id('rule-zero'),
             priority: 0,
             when: {
               field: 'eventType',
@@ -242,18 +209,18 @@ describe('Policy Engine - Rule Priority', () => {
             then: {
               treatment: {
                 lines: [
-                  { accountId: 'acc-3', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-                  { accountId: 'acc-4', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
+                  { accountId: id('acc-3'), side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
+                  { accountId: id('acc-4'), side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
                 ]
               }
             }
           }
         ]
       }
-    };
+    });
 
-    const result = evaluateRules(event, policyVersion);
+    const result = policyEngine.evaluate(event, policyVersion);
     expect(result.matched).toBe(true);
-    expect(result.selectedRuleId).toBe('rule-zero'); // 0 > -100
+    expect(result.selectedRuleId).toBe(id('rule-zero')); // 0 > -100
   });
 });

@@ -1,3 +1,4 @@
+import { id } from '../fixtures/ids';
 import { createPolicyVersion } from '../../src/domain/policies/PolicyVersion';
 import { PolicyIR } from '../../src/domain/policies/PolicyIR';
 import { Rule } from '../../src/domain/policies/PolicyIR';
@@ -9,13 +10,13 @@ describe('PolicyVersion Domain Model', () => {
   const sampleTreatment: AccountingTreatment = {
     lines: [
       {
-        accountId: 'acc-1',
+        accountId: id('acc-1'),
         side: 'DEBIT' as const,
         amount: { type: 'EVENT_AMOUNT' },
         description: 'Test debit'
       },
       {
-        accountId: 'acc-2',
+        accountId: id('acc-2'),
         side: 'CREDIT' as const,
         amount: { type: 'EVENT_AMOUNT' },
         description: 'Test credit'
@@ -24,10 +25,10 @@ describe('PolicyVersion Domain Model', () => {
   };
 
   const sampleRule: Rule = {
-    id: 'rule-1',
+    id: id('rule-1'),
     priority: 100,
     when: {
-      all: [
+      AND: [
         { field: 'eventType', operator: 'equals', value: 'PURCHASE' },
         { field: 'counterparty', operator: 'equals', value: 'Starbucks' }
       ]
@@ -41,26 +42,28 @@ describe('PolicyVersion Domain Model', () => {
 
   it('should create a valid policy version', () => {
     const policyVersion = createPolicyVersion({
-      id: 'pv-1',
-      policyId: 'pol-1',
+      tenantId: id('tenant-1'),
+      id: id('pv-1'),
+      policyId: id('pol-1'),
       version: 1,
       effectiveFrom: new Date('2026-01-01'),
       status: 'ACTIVE',
       definition: samplePolicyIR
     });
 
-    expect(policyVersion.id).toBe('pv-1');
-    expect(policyVersion.policyId).toBe('pol-1');
+    expect(policyVersion.id).toBe(id('pv-1'));
+    expect(policyVersion.policyId).toBe(id('pol-1'));
     expect(policyVersion.version).toBe(1);
     expect(policyVersion.effectiveFrom.toString()).toBe(new Date('2026-01-01').toString());
     expect(policyVersion.status).toBe('ACTIVE');
-    expect(policyVersion.definition).toBe(samplePolicyIR);
+    expect(policyVersion.definition).toEqual(samplePolicyIR);
   });
 
   it('should default status to DRAFT', () => {
     const policyVersion = createPolicyVersion({
-      id: 'pv-2',
-      policyId: 'pol-2',
+      tenantId: id('tenant-1'),
+      id: id('pv-2'),
+      policyId: id('pol-2'),
       version: 1,
       effectiveFrom: new Date('2026-01-01'),
       definition: samplePolicyIR
@@ -72,8 +75,9 @@ describe('PolicyVersion Domain Model', () => {
 
   it('should allow effectiveTo to be undefined', () => {
     const policyVersion = createPolicyVersion({
-      id: 'pv-3',
-      policyId: 'pol-3',
+      tenantId: id('tenant-1'),
+      id: id('pv-3'),
+      policyId: id('pol-3'),
       version: 1,
       effectiveFrom: new Date('2026-01-01'),
       effectiveTo: undefined,

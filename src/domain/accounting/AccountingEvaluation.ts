@@ -7,6 +7,7 @@ export const EvaluationReason = z.enum([
   'NO_MATCHING_RULE',
   'POLICY_NOT_FOUND',
   'POLICY_NOT_ACTIVE',
+  'POLICY_INVALID_CONFLICTING_RULES',
   'AMOUNT_INVALID',
   'ACCOUNT_INVALID'
 ]);

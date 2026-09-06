@@ -1,106 +1,245 @@
-// Tests for multi-line journal handling
+import { id } from '../fixtures/ids';
+import { AccountingEngineService } from '../../src/application/accounting/AccountingEngineService';
+import { InMemoryAccountRepository } from '../../src/infrastructure/memory/InMemoryAccountRepository';
+import { InMemoryJournalRepository } from '../../src/infrastructure/memory/InMemoryJournalRepository';
+import { createAccount } from '../../src/domain/accounting/Account';
+import { createBusinessEvent } from '../../src/domain/events/BusinessEvent';
+import { PolicyVersion } from '../../src/domain/policies/PolicyVersion';
+import { AccountingTreatment } from '../../src/domain/accounting/AccountingTreatment';
+import { TreatmentLine } from '../../src/domain/accounting/AccountingTreatment';
+import { AmountExpression } from '../../src/domain/accounting/AccountingTreatment';
 
-describe('Accounting Engine - Multi-line Journal Handling', () => {
-  // Mock function to process accounting treatment into journal lines
-  const processTreatmentToJournalLines = (treatmentLines: any[], eventAmount: number, eventCurrency: string) => {
-    return treatmentLines.map((line: any, index: number) => {
-      let amount = 0;
+describe('Accounting Engine - Multi-line Journal Handling (Production)', () => {
+  let accountingEngine: AccountingEngineService;
+  let accountRepository: InMemoryAccountRepository;
+  let journalRepository: InMemoryJournalRepository;
 
-      if (line.amount.type === 'EVENT_AMOUNT') {
-        amount = eventAmount;
-      } else if (line.amount.type === 'FIXED_AMOUNT') {
-        amount = line.amount.value || 0;
-        // In a real system, we'd also validate currency matching
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    journalRepository = new InMemoryJournalRepository();
+
+    accountingEngine = new AccountingEngineService({
+      dependencies: {
+        accountRepository,
+        journalRepository
       }
-
-      return {
-        id: `line-${index + 1}`,
-        journalId: 'journal-test-id',
-        accountId: line.accountId,
-        debit: line.side === 'DEBIT' ? amount : 0,
-        credit: line.side === 'CREDIT' ? amount : 0,
-        currency: eventCurrency,
-        description: line.description || ''
-      };
     });
-  };
-
-  it('should correctly process a simple two-line treatment', () => {
-    const treatmentLines = [
-      {
-        accountId: 'acc-expenses',
-        side: 'DEBIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Business expense'
-      },
-      {
-        accountId: 'acc-cash',
-        side: 'CREDIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Cash payment'
-      }
-    ];
-
-    const eventAmount = 7800;
-    const eventCurrency = 'INR';
-
-    const journalLines = processTreatmentToJournalLines(treatmentLines, eventAmount, eventCurrency);
-
-    expect(journalLines.length).toBe(2);
-    expect(journalLines[0].accountId).toBe('acc-expenses');
-    expect(journalLines[0].debit).toBe(7800);
-    expect(journalLines[0].credit).toBe(0);
-    expect(journalLines[1].accountId).toBe('acc-cash');
-    expect(journalLines[1].debit).toBe(0);
-    expect(journalLines[1].credit).toBe(7800);
   });
 
-  it('should correctly process a four-line treatment (complex expense)', () => {
-    const treatmentLines = [
-      {
-        accountId: 'acc-travel',
-        side: 'DEBIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Travel portion'
-      },
-      {
-        accountId: 'acc-entertainment',
-        side: 'DEBIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Entertainment portion'
-      },
-      {
-        accountId: 'acc-tax',
-        side: 'DEBIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Tax portion'
-      },
-      {
-        accountId: 'acc-credit-card',
-        side: 'CREDIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Credit card payment'
-      }
-    ];
+  afterEach(() => {
+    accountRepository.clear();
+    journalRepository.clear();
+  });
 
-    const eventAmount = 9000;
-    const eventCurrency = 'INR';
+  it('should correctly process a simple two-line treatment', async () => {
+    // Set up test accounts
+    const expenseAccount = createAccount({
+      id: id('expense-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5000',
+      name: 'Expenses',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
 
-    const journalLines = processTreatmentToJournalLines(treatmentLines, eventAmount, eventCurrency);
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
 
-    expect(journalLines.length).toBe(4);
+    accountRepository.add(expenseAccount);
+    accountRepository.add(cashAccount);
+
+    // Create a policy version with a simple two-line treatment
+    const policyVersion: PolicyVersion = {
+      id: id('test-policy-version'),
+      policyId: id('test-policy'),
+      tenantId: id('test-tenant-id'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('test-rule'),
+            priority: 100,
+            when: {
+              field: 'eventType',
+              operator: 'equals',
+              value: 'PURCHASE'
+            },
+            then: {
+              treatment: {
+                lines: [
+                  {
+                    accountId: expenseAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Business expense'
+                  },
+                  {
+                    accountId: cashAccount.id,
+                    side: 'CREDIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Cash payment'
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      createdAt: new Date()
+    };
+
+    // Create a test business event
+    const event = createBusinessEvent({
+      eventType: 'PURCHASE',
+      amount: 7800,
+      currency: 'INR',
+      tenantId: id('test-tenant-id'),
+      occurredAt: new Date()
+    });
+
+    // Generate journal using the accounting engine
+    const journal = await accountingEngine.generateJournal(event, policyVersion);
+
+    expect(journal.lines.length).toBe(2);
+    expect(journal.lines[0].accountId).toBe(expenseAccount.id);
+    expect(journal.lines[0].debit).toBe(7800);
+    expect(journal.lines[0].credit).toBe(0);
+    expect(journal.lines[1].accountId).toBe(cashAccount.id);
+    expect(journal.lines[1].debit).toBe(0);
+    expect(journal.lines[1].credit).toBe(7800);
+  });
+
+  it('should correctly process a four-line treatment (complex expense)', async () => {
+    // Set up test accounts
+    const travelAccount = createAccount({
+      id: id('travel-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5000',
+      name: 'Travel',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
+
+    const entertainmentAccount = createAccount({
+      id: id('entertainment-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5010',
+      name: 'Entertainment',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
+
+    const taxAccount = createAccount({
+      id: id('tax-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5020',
+      name: 'Tax',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
+
+    const creditCardAccount = createAccount({
+      id: id('credit-card-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '2000',
+      name: 'Credit Card',
+      type: 'LIABILITY',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(travelAccount);
+    accountRepository.add(entertainmentAccount);
+    accountRepository.add(taxAccount);
+    accountRepository.add(creditCardAccount);
+
+    // Create a policy version with a four-line treatment
+    const policyVersion: PolicyVersion = {
+      id: id('test-policy-version'),
+      policyId: id('test-policy'),
+      tenantId: id('test-tenant-id'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('test-rule'),
+            priority: 100,
+            when: {
+              field: 'eventType',
+              operator: 'equals',
+              value: 'PURCHASE'
+            },
+            then: {
+              treatment: {
+                lines: [
+                  {
+                    accountId: travelAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Travel portion'
+                  },
+                  {
+                    accountId: entertainmentAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Entertainment portion'
+                  },
+                  {
+                    accountId: taxAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Tax portion'
+                  },
+                  {
+                    accountId: creditCardAccount.id,
+                    side: 'CREDIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Credit card payment'
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      createdAt: new Date()
+    };
+
+    // Create a test business event
+    const event = createBusinessEvent({
+      eventType: 'PURCHASE',
+      amount: 9000,
+      currency: 'INR',
+      tenantId: id('test-tenant-id'),
+      occurredAt: new Date()
+    });
+
+    // Generate journal using the accounting engine
+    const journal = await accountingEngine.generateJournal(event, policyVersion);
+
+    expect(journal.lines.length).toBe(4);
+
+    // Find lines by account ID
+    const travelLine = journal.lines.find(l => l.accountId === travelAccount.id);
+    const entertainmentLine = journal.lines.find(l => l.accountId === entertainmentAccount.id);
+    const taxLine = journal.lines.find(l => l.accountId === taxAccount.id);
+    const creditCardLine = journal.lines.find(l => l.accountId === creditCardAccount.id);
 
     // Verify debit lines
-    const travelLine = journalLines.find(l => l.accountId === 'acc-travel');
-    const entertainmentLine = journalLines.find(l => l.accountId === 'acc-entertainment');
-    const taxLine = journalLines.find(l => l.accountId === 'acc-tax');
-
     expect(travelLine?.debit).toBe(9000);
     expect(entertainmentLine?.debit).toBe(9000);
     expect(taxLine?.debit).toBe(9000);
 
     // Verify credit line
-    const creditCardLine = journalLines.find(l => l.accountId === 'acc-credit-card');
     expect(creditCardLine?.credit).toBe(9000);
 
     // Verify all other amounts are zero
@@ -110,50 +249,185 @@ describe('Accounting Engine - Multi-line Journal Handling', () => {
     expect(creditCardLine?.debit).toBe(0);
   });
 
-  it('should handle fixed amount treatments correctly', () => {
-    const treatmentLines = [
-      {
-        accountId: 'acc-expenses',
-        side: 'DEBIT' as const,
-        amount: { type: 'FIXED_AMOUNT', value: 500, currency: 'INR' },
-        description: 'Fixed fee'
+  it('should handle fixed amount treatments correctly', async () => {
+    // Set up test accounts
+    const expenseAccount = createAccount({
+      id: id('expense-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '5000',
+      name: 'Expenses',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
+
+    const cashAccount = createAccount({
+      id: id('cash-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '1000',
+      name: 'Cash',
+      type: 'ASSET',
+      status: 'ACTIVE'
+    });
+
+    accountRepository.add(expenseAccount);
+    accountRepository.add(cashAccount);
+
+    // Create a policy version with fixed and event amount treatments
+    const policyVersion: PolicyVersion = {
+      id: id('test-policy-version'),
+      policyId: id('test-policy'),
+      tenantId: id('test-tenant-id'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('test-rule'),
+            priority: 100,
+            when: {
+              field: 'eventType',
+              operator: 'equals',
+              value: 'PURCHASE'
+            },
+            then: {
+              treatment: {
+                lines: [
+                  {
+                    accountId: expenseAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'FIXED_AMOUNT', value: 500, currency: 'INR' },
+                    description: 'Fixed fee'
+                  },
+                  {
+                    accountId: cashAccount.id,
+                    side: 'CREDIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' },
+                    description: 'Remaining payment'
+                  }
+                ]
+              }
+            }
+          }
+        ]
       },
-      {
-        accountId: 'acc-cash',
-        side: 'CREDIT' as const,
-        amount: { type: 'EVENT_AMOUNT' },
-        description: 'Remaining payment'
-      }
-    ];
+      createdAt: new Date()
+    };
 
-    const eventAmount = 1000; // Total event amount
-    const eventCurrency = 'INR';
+    // Create a test business event
+    const event = createBusinessEvent({
+      eventType: 'PURCHASE',
+      amount: 1000, // Total event amount
+      currency: 'INR',
+      tenantId: id('test-tenant-id'),
+      occurredAt: new Date()
+    });
 
-    const journalLines = processTreatmentToJournalLines(treatmentLines, eventAmount, eventCurrency);
+    // Generate journal using the accounting engine
+    const journal = await accountingEngine.generateJournal(event, policyVersion);
 
-    expect(journalLines.length).toBe(2);
-    expect(journalLines[0].accountId).toBe('acc-expenses');
-    expect(journalLines[0].debit).toBe(500); // Fixed amount
-    expect(journalLines[0].credit).toBe(0);
-    expect(journalLines[1].accountId).toBe('acc-cash');
-    expect(journalLines[1].debit).toBe(0);
-    expect(journalLines[1].credit).toBe(1000); // Event amount (in real system, this might be event-amount minus fixed amounts)
+    expect(journal.lines.length).toBe(2);
+    expect(journal.lines[0].accountId).toBe(expenseAccount.id);
+    expect(journal.lines[0].debit).toBe(500); // Fixed amount
+    expect(journal.lines[0].credit).toBe(0);
+    expect(journal.lines[1].accountId).toBe(cashAccount.id);
+    expect(journal.lines[1].debit).toBe(0);
+    expect(journal.lines[1].credit).toBe(1000); // Event amount
   });
 
-  it('should preserve line order from treatment to journal', () => {
-    const treatmentLines = [
-      { accountId: 'acc-first', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-      { accountId: 'acc-second', side: 'DEBIT', amount: { type: 'EVENT_AMOUNT' } },
-      { accountId: 'acc-third', side: 'CREDIT', amount: { type: 'EVENT_AMOUNT' } }
-    ];
+  it('should preserve line order from treatment to journal', async () => {
+    // Set up test accounts
+    const firstAccount = createAccount({
+      id: id('first-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '3000',
+      name: 'First Account',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
 
-    const eventAmount = 3000;
-    const eventCurrency = 'INR';
+    const secondAccount = createAccount({
+      id: id('second-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '3010',
+      name: 'Second Account',
+      type: 'EXPENSE',
+      status: 'ACTIVE'
+    });
 
-    const journalLines = processTreatmentToJournalLines(treatmentLines, eventAmount, eventCurrency);
+    const thirdAccount = createAccount({
+      id: id('third-account-id'),
+      tenantId: id('test-tenant-id'),
+      code: '3020',
+      name: 'Third Account',
+      type: 'INCOME',
+      status: 'ACTIVE'
+    });
 
-    expect(journalLines[0].accountId).toBe('acc-first');
-    expect(journalLines[1].accountId).toBe('acc-second');
-    expect(journalLines[2].accountId).toBe('acc-third');
+    accountRepository.add(firstAccount);
+    accountRepository.add(secondAccount);
+    accountRepository.add(thirdAccount);
+
+    // Create a policy version with ordered treatment lines
+    const policyVersion: PolicyVersion = {
+      id: id('test-policy-version'),
+      policyId: id('test-policy'),
+      tenantId: id('test-tenant-id'),
+      version: 1,
+      effectiveFrom: new Date('2026-01-01'),
+      status: 'ACTIVE',
+      definition: {
+        rules: [
+          {
+            id: id('test-rule'),
+            priority: 100,
+            when: {
+              field: 'eventType',
+              operator: 'equals',
+              value: 'PURCHASE'
+            },
+            then: {
+              treatment: {
+                lines: [
+                  {
+                    accountId: firstAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' }
+                  },
+                  {
+                    accountId: secondAccount.id,
+                    side: 'DEBIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' }
+                  },
+                  {
+                    accountId: thirdAccount.id,
+                    side: 'CREDIT' as const,
+                    amount: { type: 'EVENT_AMOUNT' }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      createdAt: new Date()
+    };
+
+    // Create a test business event
+    const event = createBusinessEvent({
+      eventType: 'PURCHASE',
+      amount: 3000,
+      currency: 'INR',
+      tenantId: id('test-tenant-id'),
+      occurredAt: new Date()
+    });
+
+    // Generate journal using the accounting engine
+    const journal = await accountingEngine.generateJournal(event, policyVersion);
+
+    expect(journal.lines.length).toBe(3);
+    expect(journal.lines[0].accountId).toBe(firstAccount.id);
+    expect(journal.lines[1].accountId).toBe(secondAccount.id);
+    expect(journal.lines[2].accountId).toBe(thirdAccount.id);
   });
 });
