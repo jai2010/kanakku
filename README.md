@@ -347,47 +347,6 @@ npm test
 
 ---
 
-## Repository Structure
-
-```text
-kanakku/
-├── src/                  # Accounting engine and domain logic
-├── tests/                # Engine and domain tests
-├── docs/
-│   ├── ARCHITECTURE.md   # Architecture documentation
-│   └── media/            # README product screenshots and demo
-├── public/               # Application assets
-├── README.md
-└── LICENSE
-```
-
----
-
-## Contributing
-
-KANAKKU is intended to be built in the open.
-
-Contributions, ideas, bug reports, accounting-model discussions, and architectural feedback are welcome.
-
-Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting a pull request.
-
----
-
-## Security
-
-If you discover a security vulnerability, please do not open a public issue with sensitive details.
-
-See [`SECURITY.md`](SECURITY.md) for the responsible disclosure process.
-
----
-
-## License
-
-KANAKKU is open source.
-
-See [`LICENSE`](LICENSE) for the license terms.
-
----
 
 <p align="center">
   <strong>KANAKKU</strong><br>
