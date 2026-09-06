@@ -1,4 +1,4 @@
-import { Commentary, WAITER_PORTRAITS } from './engine-commentary';
+import { Commentary, KANAKKU_PORTRAITS } from './engine-commentary';
 
 export function SutraCommentary(props: {
   commentary: Commentary;
@@ -7,9 +7,9 @@ export function SutraCommentary(props: {
 }): JSX.Element {
   return (
     <section className={`commentary${props.empty ? ' empty' : ''}`} aria-live="polite">
-      <div className="waiter-portrait" aria-hidden="true">
+      <div className="kanakku-portrait" aria-hidden="true">
         <img
-          src={WAITER_PORTRAITS[props.commentary.mood]}
+          src={KANAKKU_PORTRAITS[props.commentary.mood]}
           alt=""
           width={160}
           height={240}

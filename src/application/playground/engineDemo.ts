@@ -406,7 +406,7 @@ THEN
 ${then}`;
   }).join('\n\n');
 
-  return `POLICY "SUTRA Live Engine"
+  return `POLICY "Kanakku Live Engine"
 VERSION ${version}
 EFFECTIVE FROM "2026-01-01"
 

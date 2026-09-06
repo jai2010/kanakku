@@ -33,7 +33,7 @@ export interface AccountingEngineServiceOptions {
 
 /**
  * Accounting Engine - Responsible for generating, validating, posting, and reversing journal entries.
- * This is the deterministic core of the SUTRA accounting engine.
+ * This is the deterministic core of the Kanakku accounting engine.
  */
 export class AccountingEngineService {
   private policyEngine: PolicyEngineService;

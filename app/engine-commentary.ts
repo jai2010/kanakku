@@ -1,6 +1,6 @@
 import { EngineProcessResult, rupee } from './engine-types';
 
-export type WaiterMood =
+export type KanakkuMood =
   | 'waiting'
   | 'arrives'
   | 'matching'
@@ -10,7 +10,7 @@ export type WaiterMood =
   | 'error';
 
 export type Commentary = {
-  mood: WaiterMood;
+  mood: KanakkuMood;
   line: string;
 };
 
@@ -27,14 +27,14 @@ export const COMPLETED_LINES: string[] = [
   'Posted. Send me another.'
 ];
 
-export const WAITER_PORTRAITS: Record<WaiterMood, string> = {
-  waiting: '/engine/waiter/waiting.jpg',
-  arrives: '/engine/waiter/arrives.jpg',
-  matching: '/engine/waiter/matching.jpg',
-  unmatched: '/engine/waiter/unmatched.jpg',
-  success: '/engine/waiter/success.jpg',
-  posting: '/engine/waiter/posting.jpg',
-  error: '/engine/waiter/error.jpg'
+export const KANAKKU_PORTRAITS: Record<KanakkuMood, string> = {
+  waiting: '/engine/kanakku/waiting.jpg',
+  arrives: '/engine/kanakku/arrives.jpg',
+  matching: '/engine/kanakku/matching.jpg',
+  unmatched: '/engine/kanakku/unmatched.jpg',
+  success: '/engine/kanakku/success.jpg',
+  posting: '/engine/kanakku/posting.jpg',
+  error: '/engine/kanakku/error.jpg'
 };
 
 export function commentaryFor(input: {

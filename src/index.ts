@@ -6,7 +6,7 @@ import { createAccount } from './domain/accounting/Account';
 import { createBusinessEvent } from './domain/events/BusinessEvent';
 import { createPolicyVersion } from './domain/policies/PolicyVersion';
 
-console.log('Starting SUTRA Accounting Engine...');
+console.log('Starting Kanakku Accounting Engine...');
 
 const accountRepo = new InMemoryAccountRepository();
 const policyVersionRepo = new InMemoryPolicyVersionRepository();
@@ -102,7 +102,7 @@ const saleEvent = createBusinessEvent({
   createdAt: new Date()
 });
 
-console.log('Processing business event through SUTRA Accounting Engine...\n');
+console.log('Processing business event through Kanakku Accounting Engine...\n');
 
 const result = await accountingService.processEvent(saleEvent);
 
@@ -152,7 +152,7 @@ if (result.postedJournal) {
   console.log(`  Transaction ID: ${result.postedJournal.transactionId}\n`);
 }
 
-console.log('SUTRA Accounting Engine demonstration completed successfully!');
+console.log('Kanakku Accounting Engine demonstration completed successfully!');
 }
 
 main().catch((error: unknown) => {

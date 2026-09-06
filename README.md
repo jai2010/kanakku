@@ -2,124 +2,282 @@
 
 **Speak English. Kanakku handles the accounting.**
 
-Open-source playground for a deterministic accounting engine. Drop in a transaction, watch the policy fire, and see a balanced journal post.
+KANAKKU is an experimental programmable accounting system that explores a simple idea:
 
-[![Live demo](https://img.shields.io/badge/demo-kanakku.vercel.app-39a8ff?style=flat-square)](https://kanakku.vercel.app)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2ce38a?style=flat-square)](LICENSE)
-[![CI](https://github.com/jai2010/sutra/actions/workflows/test.yml/badge.svg)](https://github.com/jai2010/sutra/actions/workflows/test.yml)
+> People should be able to describe accounting intent in plain English without having to understand all of the machinery underneath.
 
-**Live demo → [kanakku.vercel.app](https://kanakku.vercel.app)**
+Tell Kanakku what you want.
 
-## Demo
+Kanakku turns that intent into explicit accounting policy, validates it, lets you simulate it, and then uses a deterministic accounting engine to produce the journal and ledger result.
 
-![Kanakku demo](docs/media/kanakku-demo.mp4)
+**Live demo:** https://kanakku1.vercel.app/
 
-[Watch the demo](docs/media/kanakku-demo.mp4) · [Open the live playground](https://kanakku.vercel.app)
+---
 
-<p align="center">
-  <img src="docs/media/engine.png" alt="Kanakku Engine posting a marketplace sale" />
-</p>
+## The idea
 
-## Why this exists
+Traditional accounting systems expose users to accounts, journal entries, debit and credit rules, posting logic, and configuration.
 
-Most accounting software hides the posting rules. Kanakku puts them in front of you.
+Kanakku explores a different interface:
 
-You speak in business language. Kanakku matches a policy, builds a double-entry journal, and posts it. The same input always produces the same journal.
+> **Speak English. Kanakku handles the accounting.**
 
-That is the whole product:
+For example:
 
-| Surface | Question |
-|---|---|
-| **Transactions** | What happened? |
-| **Engine** | How does Kanakku account for it? |
-| **Accounting Studio** | Tell Kanakku what you want. |
-| **Ledger** | What did Kanakku record? |
-| **Recon** | Does what happened match what Kanakku recorded? |
+> "Mark all Starbucks expenses over ₹5,000 as Business Meals."
 
-## Surfaces
+The request becomes an explicit accounting policy.
 
-**Engine** — send a purchase, refund, usage event, wallet movement, or marketplace sale. Watch policy, rules, operational effect, journal, validator, and ledger fire in order.
+That policy can then be:
 
-**Transactions** — the operational record: buyers, sellers, wallets, payouts, and whether each event was accounted.
+1. generated
+2. inspected
+3. validated
+4. simulated
+5. approved
+6. activated
+7. executed deterministically
 
-**Accounting Studio** — write English such as *“Treat Starbucks over ₹5,000 as Business Meals.”* Kanakku turns that into a versioned transformation.
+The important distinction is:
 
-**Ledger** — posted journals, account history, and a trial balance that has to balance.
+**AI translates intent. The accounting engine executes it.**
 
-**Recon** — a corporate-card statement against what Kanakku booked. Exact match, amount difference, missing in Kanakku, missing externally, resolved.
+AI does not directly create or post journal entries.
 
-<p align="center">
-  <img src="docs/media/transactions.png" alt="Transactions" width="49%" />
-  <img src="docs/media/studio.png" alt="Accounting Studio" width="49%" />
-</p>
-<p align="center">
-  <img src="docs/media/ledger.png" alt="Ledger" width="49%" />
-  <img src="docs/media/recon.png" alt="Reconciliation" width="49%" />
-</p>
+---
 
-## Quick start
+## How it works
+
+```text
+Human intent
+     ↓
+Natural language
+     ↓
+AI policy authoring
+     ↓
+Policy DSL
+     ↓
+Policy IR
+     ↓
+Validation
+     ↓
+Simulation
+     ↓
+Human approval
+     ↓
+Deterministic Policy Engine
+     ↓
+Accounting Engine
+     ↓
+Double-entry validation
+     ↓
+Ledger
+````
+
+The AI layer is therefore an authoring interface, not the accounting system itself.
+
+---
+
+## The product
+
+### Transactions
+
+Where business events enter Kanakku.
+
+Examples include purchases, refunds, and payments.
+
+### Engine
+
+**Watch Accounting Happen.**
+
+A transaction physically moves through the accounting engine as Kanakku:
+
+* resolves applicable policy
+* evaluates rules
+* resolves accounts
+* generates accounting treatment
+* validates debit and credit lines
+* posts the resulting journal
+
+The engine exists partly to make normally invisible accounting machinery understandable.
+
+### Accounting Studio
+
+Where accounting intent is defined.
+
+Describe what you want in natural language and Kanakku turns it into an explicit policy that can be inspected, validated, simulated, approved, and activated.
+
+### Ledger
+
+Where the accounting result is recorded.
+
+Posted journals use double-entry accounting and must balance before posting.
+
+### Recon
+
+A reconciliation workspace for comparing what happened externally with what Kanakku recorded.
+
+The mental model is:
+
+> What happened?
+>
+> What did Kanakku record?
+>
+> Do they match?
+
+Recon is currently a focused prototype rather than a full reconciliation platform.
+
+---
+
+## Architecture
+
+The accounting kernel is intentionally separated from the presentation and infrastructure layers.
+
+```text
+src/
+  domain/
+    events/
+    policies/
+    accounting/
+    ledger/
+    accounts/
+
+  application/
+    events/
+    policies/
+    accounting/
+    simulation/
+
+  infrastructure/
+    database/
+    ai/
+```
+
+The core accounting domain is designed to remain independent of:
+
+* Next.js
+* UI components
+* HTTP
+* LLM providers
+* database implementation
+
+This keeps the accounting logic deterministic and testable.
+
+---
+
+## Core principles
+
+### Configuration over code
+
+Accounting behavior should be expressed through policies and configuration rather than custom code for every business scenario.
+
+### Deterministic execution
+
+AI can help interpret intent, but the execution path is deterministic.
+
+### Human approval
+
+An AI-generated policy is not automatically allowed to affect accounting.
+
+Policies must pass through the appropriate validation, simulation, and approval lifecycle before activation.
+
+### Double-entry integrity
+
+Posted journals must contain valid debit and credit lines and must balance.
+
+### Effective dating
+
+Policies are versioned and can have effective dates so accounting treatment can evolve without rewriting historical policy definitions.
+
+### Auditability
+
+Accounting results retain lineage back to the business event, policy version, rule, and accounting treatment that produced them.
+
+### Fail closed
+
+Invalid accounting treatments should fail rather than silently produce questionable accounting.
+
+---
+
+## Current capabilities
+
+The prototype currently includes:
+
+* Business events
+* Chart of accounts
+* Accounting policies
+* Policy versions
+* Human-readable policy DSL
+* Policy validation
+* Policy simulation
+* Policy lifecycle
+* Natural-language policy authoring
+* Deterministic accounting execution
+* Multi-line journal generation
+* Double-entry validation
+* Ledger posting
+* Idempotent processing
+* Journal reversal
+* Accounting lineage
+* Engine visualization
+* Reconciliation prototype
+
+This is an experimental prototype, not production accounting software.
+
+---
+
+## Technology
+
+* Next.js
+* TypeScript
+* React
+* Zod
+* Provider-neutral LLM integration
+* Vercel
+
+The accounting kernel is intentionally separated from these infrastructure choices.
+
+---
+
+## Run locally
 
 ```bash
-git clone https://github.com/jai2010/sutra.git
-cd sutra
 npm install
-npm run dev:web
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open:
+
+```text
+http://localhost:3000
+```
+
+---
+
+## Verify
 
 ```bash
-npm test              # kernel + playground tests
-npx tsc --noEmit      # kernel types
-npm run build         # kernel + Next production build
+npx tsc --noEmit
+npm test
+npm run build
 ```
 
-No API keys are required. Accounting Studio’s English compiler uses a fake LLM unless you set one — see [`.env.example`](.env.example).
+All three should pass.
 
-## How posting works
+---
 
-```
-Business event
-      ↓
-Policy version (effective-dated rules)
-      ↓
-Matched transformation
-      ↓
-Balanced journal  (DR = CR)
-      ↓
-Posted ledger + optional operational balances
-```
+## Project philosophy
 
-Rules are stored as a small DSL, compiled, and evaluated deterministically. Amounts can be the event total, a fixed figure, an attribute, or a rate (marketplace fee, tax, usage × unit price).
+Kanakku is an exploration of a simple idea:
 
-The kernel does **not** call an LLM to decide the journal. AI is only an authoring aid. Simulation and posting stay deterministic.
+> **Accounting can be complicated underneath without being complicated at the interface.**
 
-More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The interesting part is not an AI that generates journal entries.
 
-## What this demo is
+The interesting part is a programmable accounting system where humans can express accounting intent naturally, inspect exactly what that intent means, simulate it, approve it, and then let a deterministic engine execute it.
 
-- An in-memory playground with seeded Indian-rupee demo data
-- A real double-entry engine, policy DSL, and test suite
-- A public UI at [kanakku.vercel.app](https://kanakku.vercel.app)
+---
 
-## What this demo is not
+## Live demo
 
-- Not a bank feed, Plaid, or ERP connector
-- Not a production multi-tenant general ledger
-- Not a close / lock / multi-currency system
-- Recon is deterministic matching, not ML
-
-Reloading a serverless instance resets the in-memory books. That is expected. See [docs/DEPLOY.md](docs/DEPLOY.md).
-
-## Documentation
-
-| | |
-|---|---|
-| [Architecture](docs/ARCHITECTURE.md) | Kernel, layers, posting path |
-| [Deploy](docs/DEPLOY.md) | Vercel, env, in-memory limits |
-| [Contributing](CONTRIBUTING.md) | How to change the engine or UI |
-| [License](LICENSE) | MIT |
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+**[https://kanakku1.vercel.app/](https://kanakku1.vercel.app/)**

@@ -1,29 +1,26 @@
 # Architecture
 
-Kanakku is a **deterministic accounting kernel** with a **playground UI**.
+Kanakku is a **deterministic accounting kernel**. The playground UI is a showcase of that kernel, not the system itself.
 
-The kernel decides what to post. The UI lets you watch it, teach it, inspect the books, and reconcile.
+The kernel decides what to post. The showcase lets you watch it, teach a policy, inspect the books, and reconcile.
 
 ```
-TRANSACTIONS          What happened?
-      ↓
-ENGINE                How does Kanakku account for it?
-      ↓
-ACCOUNTING STUDIO     Tell Kanakku what you want.
-      ↓
-LEDGER                What did Kanakku record?
-      ↓
-RECON                 Does what happened match what Kanakku recorded?
+WHAT HAPPENED                         HOW IT WAS ACCOUNTED
+─────────────                         ────────────────────
+Business event                        Policy version
+                                      Matched transformation
+                                      Journal (DR = CR)
+                                      Financial ledger
+                                      Operational balances
 ```
 
 ## Layers
 
 ```
-app/                         Next.js playground (React)
-  api/engine                 In-memory engine session over HTTP
-src/domain                   Pure accounting, policy, ledger, recon
-src/application              Services that orchestrate domain objects
-src/infrastructure           In-memory repos + optional LLM providers
+src/domain            Pure accounting, policy, ledger, recon
+src/application       Orchestration: evaluate → journal → post
+src/infrastructure    In-memory repositories, optional LLM providers
+app/                  Showcase UI (Next.js). Not required to use the kernel.
 ```
 
 Domain code does not talk to the network. Journals are produced from a policy version and a business event. If two inputs are the same, the journal is the same.
@@ -32,28 +29,40 @@ Domain code does not talk to the network. Journals are produced from a policy ve
 
 | Piece | Role |
 |---|---|
-| **BusinessEvent** | Something that happened: purchase, refund, usage, wallet, marketplace sale, payout |
+| **BusinessEvent** | Economic fact: purchase, refund, usage, wallet, marketplace sale, payout |
 | **Policy / PolicyVersion** | Versioned rules with effective dates |
 | **Policy DSL** | Human-readable rules compiled to an intermediate representation |
 | **AccountingEngine** | Match a rule, resolve amounts, generate a balanced journal, post |
-| **Ledger** | Derived from posted journals (trial balance, account history) |
-| **Transactional ledger** | Operational balances (wallets, seller payables) next to the financial books |
-| **Recon** | Deterministic comparison of an external statement to Kanakku transactions |
+| **Financial ledger** | Derived from posted journals (trial balance, account history) |
+| **Transactional ledger** | Operational balances (wallets, seller payables) from the same treatment |
+| **Recon** | Deterministic comparison of an external record to Kanakku books |
 
 Amounts can come from the event, a fixed value, an event attribute, or a rate (fee %, tax %, usage × unit price).
 
-## Playground session
+AI may draft DSL. The kernel only evaluates compiled policy. Simulation and posting stay deterministic.
 
-`EngineService` holds an in-memory tenant: chart of accounts, seeded demo transactions, policy rules, and posted journals. The Next route at `/api/engine` talks to that session.
+## Posting path
 
-This is enough to demo the product. It is **not** a multi-user database. Reloading a serverless instance resets the books. See [DEPLOY.md](./DEPLOY.md).
+1. Resolve the active policy version for the event’s tenant and date.
+2. Evaluate rules by priority. Equal-priority overlap is a conflict and fails closed.
+3. Materialize financial lines and optional transactional effects.
+4. Validate: known accounts, ≥1 debit, ≥1 credit, **DR = CR**.
+5. Post. Reverse by inserting a reversing journal, never by mutating the original.
 
-## What this is not (yet)
+The evaluation carries the matched rule, the miss reason, and the lines. That is the audit trail.
 
-- Bank feeds, Plaid, or ERP connectors
+## Showcase session
+
+`EngineService` holds an in-memory tenant used only by `app/`. It is how the design is demonstrated at [kanakku.vercel.app](https://kanakku.vercel.app).
+
+It is **not** a multi-user database. Reloading a serverless instance resets the books. See [DEPLOY.md](./DEPLOY.md).
+
+## What does not belong in the kernel
+
+- Bank feeds, Plaid, ERP connectors
 - Period close / lock
 - Multi-currency
-- Fuzzy / ML matching in Recon
+- Fuzzy / ML matching
 - Durable multi-tenant production storage
 
-Those are future work. The kernel is built so they can sit *outside* posting, not inside it.
+Those sit *outside* posting. They must not decide the journal.

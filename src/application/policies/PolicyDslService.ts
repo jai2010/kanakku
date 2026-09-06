@@ -10,7 +10,7 @@ import {
 } from '../../domain/policies/dsl';
 
 /**
- * Authoring ingress for SUTRA DSL. Compiles to existing PolicyIR; does not execute accounting.
+ * Authoring ingress for Kanakku DSL. Compiles to existing PolicyIR; does not execute accounting.
  */
 export class PolicyDslService {
   parse(source: string): DslPolicy {

@@ -4,12 +4,12 @@ export type AuthoringIntent =
   | { kind: 'UNSUPPORTED'; reason: string };
 
 const UNSUPPORTED_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
-  { pattern: /\b(gst|vat|hst|sales tax|withholding tax)\b/i, reason: 'Tax accounting is not in the SUTRA MVP kernel.' },
+  { pattern: /\b(gst|vat|hst|sales tax|withholding tax)\b/i, reason: 'Tax accounting is not in the Kanakku MVP kernel.' },
   { pattern: /\b(ocr|receipt scan|email inbox|gmail)\b/i, reason: 'Document ingestion is not a policy-authoring capability.' },
-  { pattern: /\b(multi-?currenc|foreign exchange|\bfx\b|currency conversion)\b/i, reason: 'Multicurrency is not in the SUTRA MVP kernel.' },
-  { pattern: /\b(amortiz|revenue recognition|deferred revenue)\b/i, reason: 'Revenue recognition schedules are not in the SUTRA MVP kernel.' },
-  { pattern: /\b(payroll|salary|depreciat|inventory|fifo|lifo)\b/i, reason: 'That accounting topic is not in the SUTRA MVP kernel.' },
-  { pattern: /\b(roommate|split the bill|venmo|personal budget)\b/i, reason: 'Personal-finance splitting is not a SUTRA accounting policy.' }
+  { pattern: /\b(multi-?currenc|foreign exchange|\bfx\b|currency conversion)\b/i, reason: 'Multicurrency is not in the Kanakku MVP kernel.' },
+  { pattern: /\b(amortiz|revenue recognition|deferred revenue)\b/i, reason: 'Revenue recognition schedules are not in the Kanakku MVP kernel.' },
+  { pattern: /\b(payroll|salary|depreciat|inventory|fifo|lifo)\b/i, reason: 'That accounting topic is not in the Kanakku MVP kernel.' },
+  { pattern: /\b(roommate|split the bill|venmo|personal budget)\b/i, reason: 'Personal-finance splitting is not a Kanakku accounting policy.' }
 ];
 
 export function inspectAuthoringIntent(instruction: string): AuthoringIntent {

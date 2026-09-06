@@ -3,7 +3,7 @@ import { LLMProviderError } from '../ai/LLMContract';
 import { PolicyDslError } from '../../domain/policies/dsl';
 import { PolicyVersion } from '../../domain/policies/PolicyVersion';
 import { extractDslFromUntrustedText } from './extractDslText';
-import { SUTRA_POLICY_AUTHORING_PROMPT } from './policyAuthoringPrompt';
+import { Kanakku_POLICY_AUTHORING_PROMPT } from './policyAuthoringPrompt';
 import { PolicyDslService } from './PolicyDslService';
 
 export type PolicyAuthoringChartAccount = {
@@ -52,7 +52,7 @@ export class PolicyAuthoringService {
 
     try {
       const response = await this.gateway.complete({
-        systemInstruction: SUTRA_POLICY_AUTHORING_PROMPT,
+        systemInstruction: Kanakku_POLICY_AUTHORING_PROMPT,
         userInput: input.instruction,
         context: buildContext(input)
       });

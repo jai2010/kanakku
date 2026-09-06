@@ -1,6 +1,6 @@
-# Deploying the demo
+# Deploying the showcase
 
-The live playground is meant to run at [kanakku.vercel.app](https://kanakku.vercel.app).
+The hosted playground is a **showcase of the kernel**, not the kernel itself. It is meant to run at [kanakku.vercel.app](https://kanakku.vercel.app).
 
 ## Vercel
 

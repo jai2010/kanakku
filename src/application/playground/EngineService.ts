@@ -818,7 +818,7 @@ export class EngineService {
       return null;
     }
     return {
-      name: 'SUTRA Live Engine',
+      name: 'Kanakku Live Engine',
       version: this.policyVersion.version,
       status: 'ACTIVE',
       effectiveFrom: this.policyVersion.effectiveFrom.toISOString(),
@@ -1211,7 +1211,7 @@ export class EngineService {
       },
       {
         title: `${this.rules.filter((rule) => rule.enabled).length} rules scanned`,
-        detail: 'Active SUTRA Live Engine policy',
+        detail: 'Active Kanakku Live Engine policy',
         tone: 'ok'
       },
       {

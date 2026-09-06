@@ -1384,13 +1384,13 @@ input:focus, select:focus {
   overflow: hidden;
 }
 
-.waiter-portrait {
+.kanakku-portrait {
   position: relative;
   overflow: hidden;
   background: #071018;
 }
 
-.waiter-portrait img {
+.kanakku-portrait img {
   position: absolute;
   inset: -8% -12% 0 -6%;
   width: 124%;
