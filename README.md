@@ -1,25 +1,14 @@
 # KANAKKU
 
-<p align="center">
+<p align="left">
   <strong>Speak English. Kanakku handles the accounting.</strong>
 </p>
 
-<p align="center">
+<p align="left">
   A programmable accounting engine that turns business intent into deterministic,
   auditable, double-entry accounting.
 </p>
 
-<p align="center">
-  <a href="https://github.com/jai2010/kanakku">
-    <img src="https://img.shields.io/github/stars/jai2010/kanakku?style=flat" alt="GitHub Stars">
-  </a>
-  <a href="https://github.com/jai2010/kanakku/issues">
-    <img src="https://img.shields.io/github/issues/jai2010/kanakku?style=flat" alt="GitHub Issues">
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/jai2010/kanakku?style=flat" alt="License">
-  </a>
-</p>
 
 <p align="center">
   <img src="docs/media/engine.png" alt="KANAKKU Accounting Engine" width="100%">
