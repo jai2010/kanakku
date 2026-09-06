@@ -14,20 +14,16 @@
   <img src="docs/media/engine.png" alt="KANAKKU Accounting Engine" width="100%">
 </p>
 
-<p align="center">
+<p align="left">
   <strong>Watch accounting happen.</strong><br>
   A transaction moves through policy resolution, rule evaluation, treatment,
   journal generation, validation, and ledger posting.
 </p>
 
-<p align="center">
+<p align="left">
   <a href="https://kanakku1.vercel.app">▶ Try KANAKKU Live</a>
   ·
   <a href="docs/ARCHITECTURE.md">Architecture</a>
-  ·
-  <a href="CONTRIBUTING.md">Contributing</a>
-  ·
-  <a href="LICENSE">License</a>
 </p>
 
 ---
