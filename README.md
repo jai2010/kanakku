@@ -1,283 +1,395 @@
 # KANAKKU
 
-**Speak English. Kanakku handles the accounting.**
+<p align="center">
+  <strong>Speak English. Kanakku handles the accounting.</strong>
+</p>
 
-KANAKKU is an experimental programmable accounting system that explores a simple idea:
+<p align="center">
+  A programmable accounting engine that turns business intent into deterministic,
+  auditable, double-entry accounting.
+</p>
 
-> People should be able to describe accounting intent in plain English without having to understand all of the machinery underneath.
+<p align="center">
+  <a href="https://github.com/jai2010/kanakku">
+    <img src="https://img.shields.io/github/stars/jai2010/kanakku?style=flat" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/jai2010/kanakku/issues">
+    <img src="https://img.shields.io/github/issues/jai2010/kanakku?style=flat" alt="GitHub Issues">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/jai2010/kanakku?style=flat" alt="License">
+  </a>
+</p>
 
-Tell Kanakku what you want.
+<p align="center">
+  <img src="docs/media/engine.png" alt="KANAKKU Accounting Engine" width="100%">
+</p>
 
-Kanakku turns that intent into explicit accounting policy, validates it, lets you simulate it, and then uses a deterministic accounting engine to produce the journal and ledger result.
+<p align="center">
+  <strong>Watch accounting happen.</strong><br>
+  A transaction moves through policy resolution, rule evaluation, treatment,
+  journal generation, validation, and ledger posting.
+</p>
 
-**Live demo:** https://kanakku1.vercel.app/
+<p align="center">
+  <a href="docs/media/kanakku-demo.mp4">▶ Watch the demo</a>
+  ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a>
+  ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+  ·
+  <a href="LICENSE">License</a>
+</p>
 
 ---
 
-## The idea
+## What is KANAKKU?
 
-Traditional accounting systems expose users to accounts, journal entries, debit and credit rules, posting logic, and configuration.
+KANAKKU is an open-source accounting engine designed to make accounting logic **programmable, explainable, and deterministic**.
 
-Kanakku explores a different interface:
+Instead of burying accounting behaviour inside application code, KANAKKU separates:
+
+**business intent → accounting policy → rules → transaction effects → journal → validation → ledger**
+
+The goal is simple:
 
 > **Speak English. Kanakku handles the accounting.**
 
-For example:
-
-> "Mark all Starbucks expenses over ₹5,000 as Business Meals."
-
-The request becomes an explicit accounting policy.
-
-That policy can then be:
-
-1. generated
-2. inspected
-3. validated
-4. simulated
-5. approved
-6. activated
-7. executed deterministically
-
-The important distinction is:
-
-**AI translates intent. The accounting engine executes it.**
-
-AI does not directly create or post journal entries.
+A business should be able to express what it wants its accounting to do, while the engine makes the resulting accounting explicit, testable, balanced, and auditable.
 
 ---
 
-## How it works
+## The Accounting Engine
+
+KANAKKU treats accounting as a pipeline rather than a black box.
 
 ```text
-Human intent
-     ↓
-Natural language
-     ↓
-AI policy authoring
-     ↓
-Policy DSL
-     ↓
-Policy IR
-     ↓
-Validation
-     ↓
-Simulation
-     ↓
-Human approval
-     ↓
-Deterministic Policy Engine
-     ↓
-Accounting Engine
-     ↓
-Double-entry validation
-     ↓
-Ledger
-````
+Business Transaction
+        │
+        ▼
+┌─────────────────────┐
+│   Policy Resolver   │
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│   Rule Evaluation   │
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│ Effect / Treatment  │
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│  Journal Accounting │
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│ Validator / Balance │
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│    Ledger Posting   │
+└─────────────────────┘
+```
 
-The AI layer is therefore an authoring interface, not the accounting system itself.
+Every stage has a defined responsibility.
+
+The result is accounting that can be inspected rather than merely trusted.
 
 ---
 
-## The product
+## Why KANAKKU?
+
+Traditional application accounting often ends up looking like:
+
+```text
+if purchase && merchant == "Amazon"
+    debit ...
+    credit ...
+```
+
+As businesses grow, accounting logic becomes scattered across services, workflows, database procedures, and one-off exceptions.
+
+KANAKKU moves that logic into an explicit accounting model.
+
+### Human intent
+
+Business users describe accounting behaviour in natural language.
+
+### Explicit policy
+
+Intent is represented as structured accounting policy rather than hidden application logic.
+
+### Deterministic execution
+
+The accounting engine executes validated policy and produces predictable results.
+
+### Double-entry by construction
+
+Journal entries are validated before posting.
+
+### Auditability
+
+The engine can explain how a transaction became a journal and ultimately a ledger posting.
+
+### Separation of concerns
+
+Operational transactions and financial accounting remain distinct concepts.
+
+---
+
+## See It In Action
 
 ### Transactions
 
-Where business events enter Kanakku.
+Track the operational events flowing through the system.
 
-Examples include purchases, refunds, and payments.
-
-### Engine
-
-**Watch Accounting Happen.**
-
-A transaction physically moves through the accounting engine as Kanakku:
-
-* resolves applicable policy
-* evaluates rules
-* resolves accounts
-* generates accounting treatment
-* validates debit and credit lines
-* posts the resulting journal
-
-The engine exists partly to make normally invisible accounting machinery understandable.
+<p align="center">
+  <img src="docs/media/transactions.png" alt="KANAKKU Transactions" width="100%">
+</p>
 
 ### Accounting Studio
 
-Where accounting intent is defined.
+Describe accounting intent and teach KANAKKU how transactions should be treated.
 
-Describe what you want in natural language and Kanakku turns it into an explicit policy that can be inspected, validated, simulated, approved, and activated.
+<p align="center">
+  <img src="docs/media/studio.png" alt="KANAKKU Accounting Studio" width="100%">
+</p>
 
 ### Ledger
 
-Where the accounting result is recorded.
+See the financial books produced by the accounting engine.
 
-Posted journals use double-entry accounting and must balance before posting.
+<p align="center">
+  <img src="docs/media/ledger.png" alt="KANAKKU Ledger" width="100%">
+</p>
 
-### Recon
+### Reconciliation
 
-A reconciliation workspace for comparing what happened externally with what Kanakku recorded.
+Compare external activity against what KANAKKU accounted for.
 
-The mental model is:
+<p align="center">
+  <img src="docs/media/recon.png" alt="KANAKKU Reconciliation" width="100%">
+</p>
 
-> What happened?
->
-> What did Kanakku record?
->
-> Do they match?
+---
 
-Recon is currently a focused prototype rather than a full reconciliation platform.
+## Example
+
+Consider a marketplace sale of ₹10,000.
+
+The business might express its intent as:
+
+```text
+Track what each seller is owed from marketplace sales.
+
+Deduct a 5% marketplace fee and 18% tax
+before calculating the seller's eligible payout.
+```
+
+KANAKKU turns that intent into accounting behaviour.
+
+The engine can then determine:
+
+```text
+Gross sale                 ₹10,000
+Marketplace fee               ₹500
+Tax                            ₹900
+──────────────────────────────────
+Seller balance               ₹8,600
+```
+
+And produce a balanced journal:
+
+```text
+DR Cash                      ₹10,000
+CR Seller Payable            ₹10,000
+
+DR Seller Payable               ₹500
+CR Marketplace Fee Revenue      ₹500
+
+DR Seller Payable               ₹900
+CR Tax Payable                  ₹900
+```
+
+The important part isn't just the resulting numbers.
+
+**The accounting path is visible.**
+
+---
+
+## Core Principles
+
+### Deterministic execution
+
+The accounting engine should not depend on an LLM to decide how accounting is executed.
+
+AI can help translate human intent into accounting policy.
+
+The resulting policy must be validated before deterministic execution.
+
+### Balanced journals
+
+Every posted journal must satisfy:
+
+```text
+Total Debits = Total Credits
+```
+
+### Explicit accounting
+
+Accounting decisions should be represented as data and policy rather than hidden inside application code.
+
+### Auditability
+
+A transaction should be traceable from its operational event through the accounting policy, rules, journal, validation, and ledger.
+
+### Separation of operational and financial models
+
+What happened operationally and how it should be accounted for are related, but they are not the same thing.
 
 ---
 
 ## Architecture
 
-The accounting kernel is intentionally separated from the presentation and infrastructure layers.
+KANAKKU is built around a layered accounting model:
 
 ```text
-src/
-  domain/
-    events/
-    policies/
-    accounting/
-    ledger/
-    accounts/
-
-  application/
-    events/
-    policies/
-    accounting/
-    simulation/
-
-  infrastructure/
-    database/
-    ai/
+                    Business Intent
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Policy / Intent │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │   Rule Engine   │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │     Effects     │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │ Journal Engine  │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    Validator    │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │     Ledger      │
+                  └─────────────────┘
 ```
 
-The core accounting domain is designed to remain independent of:
-
-* Next.js
-* UI components
-* HTTP
-* LLM providers
-* database implementation
-
-This keeps the accounting logic deterministic and testable.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detailed architecture.
 
 ---
 
-## Core principles
+## Project Status
 
-### Configuration over code
+KANAKKU is an actively developed open-source project.
 
-Accounting behavior should be expressed through policies and configuration rather than custom code for every business scenario.
+The current implementation focuses on the core accounting model and engine, including:
 
-### Deterministic execution
+- Business events
+- Accounting policies
+- Policy versions
+- Rules and rule evaluation
+- Transaction effects
+- Journal generation
+- Double-entry validation
+- Ledger posting
+- Reconciliation
+- Accounting Studio
+- Deterministic accounting behaviour
 
-AI can help interpret intent, but the execution path is deterministic.
+The APIs and data model are still evolving.
 
-### Human approval
-
-An AI-generated policy is not automatically allowed to affect accounting.
-
-Policies must pass through the appropriate validation, simulation, and approval lifecycle before activation.
-
-### Double-entry integrity
-
-Posted journals must contain valid debit and credit lines and must balance.
-
-### Effective dating
-
-Policies are versioned and can have effective dates so accounting treatment can evolve without rewriting historical policy definitions.
-
-### Auditability
-
-Accounting results retain lineage back to the business event, policy version, rule, and accounting treatment that produced them.
-
-### Fail closed
-
-Invalid accounting treatments should fail rather than silently produce questionable accounting.
+**This is an early-stage project and should not yet be treated as production accounting infrastructure.**
 
 ---
 
-## Current capabilities
+## Getting Started
 
-The prototype currently includes:
+Clone the repository:
 
-* Business events
-* Chart of accounts
-* Accounting policies
-* Policy versions
-* Human-readable policy DSL
-* Policy validation
-* Policy simulation
-* Policy lifecycle
-* Natural-language policy authoring
-* Deterministic accounting execution
-* Multi-line journal generation
-* Double-entry validation
-* Ledger posting
-* Idempotent processing
-* Journal reversal
-* Accounting lineage
-* Engine visualization
-* Reconciliation prototype
+```bash
+git clone https://github.com/jai2010/kanakku.git
+cd kanakku
+```
 
-This is an experimental prototype, not production accounting software.
-
----
-
-## Technology
-
-* Next.js
-* TypeScript
-* React
-* Zod
-* Provider-neutral LLM integration
-* Vercel
-
-The accounting kernel is intentionally separated from these infrastructure choices.
-
----
-
-## Run locally
+Install dependencies:
 
 ```bash
 npm install
+```
+
+Run the development environment:
+
+```bash
 npm run dev
 ```
 
-Open:
-
-```text
-http://localhost:3000
-```
-
----
-
-## Verify
+Run tests:
 
 ```bash
-npx tsc --noEmit
 npm test
-npm run build
 ```
 
-All three should pass.
+> Commands may evolve as the project develops. Check `package.json` for the current scripts.
 
 ---
 
-## Project philosophy
+## Repository Structure
 
-Kanakku is an exploration of a simple idea:
-
-> **Accounting can be complicated underneath without being complicated at the interface.**
-
-The interesting part is not an AI that generates journal entries.
-
-The interesting part is a programmable accounting system where humans can express accounting intent naturally, inspect exactly what that intent means, simulate it, approve it, and then let a deterministic engine execute it.
+```text
+kanakku/
+├── src/                  # Accounting engine and domain logic
+├── tests/                # Engine and domain tests
+├── docs/
+│   ├── ARCHITECTURE.md   # Architecture documentation
+│   └── media/            # README product screenshots and demo
+├── public/               # Application assets
+├── README.md
+└── LICENSE
+```
 
 ---
 
-## Live demo
+## Contributing
 
-**[https://kanakku1.vercel.app/](https://kanakku1.vercel.app/)**
+KANAKKU is intended to be built in the open.
+
+Contributions, ideas, bug reports, accounting-model discussions, and architectural feedback are welcome.
+
+Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting a pull request.
+
+---
+
+## Security
+
+If you discover a security vulnerability, please do not open a public issue with sensitive details.
+
+See [`SECURITY.md`](SECURITY.md) for the responsible disclosure process.
+
+---
+
+## License
+
+KANAKKU is open source.
+
+See [`LICENSE`](LICENSE) for the license terms.
+
+---
+
+<p align="center">
+  <strong>KANAKKU</strong><br>
+  Speak English. Kanakku handles the accounting.
+</p>
