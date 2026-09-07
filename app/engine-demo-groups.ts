@@ -18,7 +18,7 @@ const GROUP_ORDER: Array<{
     id: 'purchases',
     label: 'Purchases',
     types: ['PURCHASE', 'PAYMENT'],
-    keys: ['starbucks', 'amazon', 'uber', 'aws', 'air-india', 'office-depot', 'bank-fee']
+    keys: ['starbucks', 'amazon', 'uber']
   },
   {
     id: 'wallet',
@@ -36,7 +36,7 @@ const GROUP_ORDER: Array<{
     id: 'usage',
     label: 'Usage',
     types: ['USAGE'],
-    keys: ['aws-ec2', 'aws-s3', 'unknown-saas']
+    keys: ['aws-ec2', 'aws-s3']
   },
   {
     id: 'refunds',

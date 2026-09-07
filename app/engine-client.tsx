@@ -696,7 +696,7 @@ export function EngineClient(): JSX.Element {
           <>
             <div className="nl-command-bar">
               <div className="nl-command-input-wrapper">
-                <label htmlFor="nl-input" className="nl-command-label">Tell Kanakku what happened.</label>
+                <label htmlFor="nl-input" className="nl-command-label">Tell Kanakku what happened on your Marketplace (Demo Usecase).</label>
                 <div className="nl-command-input-group">
                   <input
                     id="nl-input"
