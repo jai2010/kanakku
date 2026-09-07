@@ -272,7 +272,7 @@ export type EngineExampleSeed = {
 export const ENGINE_EXAMPLES: EngineExampleSeed[] = [
   { key: 'starbucks', merchant: 'Starbucks', amount: 7800, type: 'PURCHASE', category: 'Coffee chain', mark: 'sb', tint: '#00704a' },
   { key: 'acme-sale', merchant: 'Acme Electronics', amount: 10000, type: 'MARKETPLACE_SALE', category: 'Marketplace Sale', mark: 'ae', tint: '#d97706', attributes: { sellerId: 'S001', orderId: 'ORD-1001' } },
-  { key: 'priya-load', merchant: 'Priya', amount: 10000, type: 'WALLET_LOAD', category: 'Wallet Load', mark: 'pr', tint: '#0ea5e9', attributes: { buyerId: 'B001' } },
+  { key: 'refund', merchant: 'Customer Refund', amount: 5000, type: 'REFUND', category: 'Refund', mark: 'rf', tint: '#128a5e' },
   { key: 'priya-spend', merchant: 'Priya', amount: 2500, type: 'WALLET_SPEND', category: 'Wallet Purchase', mark: 'pr', tint: '#0ea5e9', attributes: { buyerId: 'B001' } },
   { key: 'aws-ec2', merchant: 'AWS', amount: 480, type: 'USAGE', category: 'EC2 Compute', mark: 'ec2', tint: '#ff9900', usage: { meter: 'compute_hours', quantity: 10, unitPrice: 48, unit: 'hours' } },
   { key: 'techworld-sale', merchant: 'TechWorld', amount: 5000, type: 'MARKETPLACE_SALE', category: 'Marketplace Sale', mark: 'tw', tint: '#6366f1', attributes: { sellerId: 'S002', orderId: 'ORD-1002' } },
@@ -283,7 +283,7 @@ export const ENGINE_EXAMPLES: EngineExampleSeed[] = [
   { key: 'aws', merchant: 'AWS', amount: 82400, type: 'PURCHASE', category: 'Cloud Services', mark: 'aws', tint: '#ff9900' },
   { key: 'air-india', merchant: 'Air India', amount: 47200, type: 'PURCHASE', category: 'Travel', mark: 'ai', tint: '#d71921' },
   { key: 'office-depot', merchant: 'Office Depot', amount: 12450, type: 'PURCHASE', category: 'Office Supplies', mark: 'od', tint: '#cc0000' },
-  { key: 'refund', merchant: 'Customer Refund', amount: 5000, type: 'REFUND', category: 'Refund', mark: 'rf', tint: '#128a5e' },
+  { key: 'priya-load', merchant: 'Priya', amount: 10000, type: 'WALLET_LOAD', category: 'Wallet Load', mark: 'pr', tint: '#0ea5e9', attributes: { buyerId: 'B001' } },
   { key: 'bank-fee', merchant: 'Bank Fee', amount: 590, type: 'PAYMENT', category: 'Bank', mark: 'bk', tint: '#6b4ea2' },
   { key: 'fashionhub-payout', merchant: 'FashionHub', amount: 1720, type: 'SELLER_PAYOUT', category: 'Payout', mark: 'fh', tint: '#db2777', attributes: { sellerId: 'S003' } }
 ];

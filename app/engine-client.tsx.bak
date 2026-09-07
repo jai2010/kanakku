@@ -27,7 +27,7 @@ import {
   typeLabel,
   rupee
 } from './engine-types';
-import { parseNaturalLanguage } from './nl-input';
+import { parseNaturalLanguage, ParsedTransaction } from './nl-input';
 
 const EMPTY: EngineSnapshot = {
   rules: [],
@@ -691,7 +691,7 @@ export function EngineClient(): JSX.Element {
         </div>
       </header>
 
-      <main className={`workspace${view === 'engine' ? ' engine-workspace' : ''}`}>
+      <main className="workspace">
         {view === 'engine' && (
           <>
             <div className="nl-command-bar">
@@ -768,7 +768,7 @@ export function EngineClient(): JSX.Element {
                           {sentence}
                         </button>
                       );
-                    })}
+                    ))}
                   <button
                     type="button"
                     onClick={() => setExamplesOpen(true)}
@@ -820,45 +820,43 @@ export function EngineClient(): JSX.Element {
         {view === 'engine' ? (
           <div className="engine-grid live-engine no-sidebar">
             <div className="engine-stage">
-              <section className="engine-container" aria-label="Accounting engine">
-                <div className="headline engine-container-head">
-                  <div>
-                    <h1 className="engine-title">Kanakku Accounting Engine</h1>
-                    <p>Watch Kanakku turn your words into accounting.</p>
-                  </div>
-                  <div className="headline-tools">
-                    <button className="btn tiny" type="button" onClick={rerun} disabled={busy || selected === undefined}>▶ Run again</button>
-                    <div className="mode" role="group" aria-label="Playback">
-                      <button type="button" className={mode === 'live' ? 'active live' : ''} onClick={() => setMode('live')}>
-                        <span className="dot" /> Live
-                      </button>
-                      <button type="button" className={mode === 'step' ? 'active step' : ''} onClick={() => setMode('step')}>
-                        Step
-                      </button>
-                    </div>
-                  </div>
+              <div className="headline">
+                <div>
+                  <h1>Watch Accounting Happen</h1>
+                  <p>Watch Kanakku turn your words into accounting.</p>
                 </div>
-                {mode === 'step' && processing ? (
-                  <div className="step-rail">
-                    <div>
-                      <div className="result-kicker">Step {Math.max(activeIndex, 0) + 1} of {STAGE_ORDER.length}</div>
-                      <b>{STAGE_TITLES[Math.max(activeIndex, 0)]}</b>
-                      <span className="meta">{activeIndex >= 5 && result?.journal?.posted === true ? '✓ Posted' : STAGE_HINTS[Math.max(activeIndex, 0)]}</span>
-                    </div>
-                    <button className="btn tiny" type="button" onClick={step}>
-                      {activeIndex >= STAGE_ORDER.length - 1 ? 'Process next transaction →' : 'Next stage →'}
+                <div className="headline-tools">
+                  <button className="btn tiny" type="button" onClick={rerun} disabled={busy || selected === undefined}>▶ Run again</button>
+                  <div className="mode" role="group" aria-label="Playback">
+                    <button type="button" className={mode === 'live' ? 'active live' : ''} onClick={() => setMode('live')}>
+                      <span className="dot" /> Live
+                    </button>
+                    <button type="button" className={mode === 'step' ? 'active step' : ''} onClick={() => setMode('step')}>
+                      Step
                     </button>
                   </div>
-                ) : null}
-                <EngineMachine
-                  result={result}
-                  activeIndex={activeIndex}
-                  running={running}
-                  animating={running || (mode === 'step' && queued && activeIndex >= 0 && activeIndex < STAGE_ORDER.length - 1)}
-                  mode={mode}
-                  onStep={mode === 'step' ? step : () => undefined}
-                />
-              </section>
+                </div>
+              </div>
+              {mode === 'step' && processing ? (
+                <div className="step-rail">
+                  <div>
+                    <div className="result-kicker">Step {Math.max(activeIndex, 0) + 1} of {STAGE_ORDER.length}</div>
+                    <b>{STAGE_TITLES[Math.max(activeIndex, 0)]}</b>
+                    <span className="meta">{activeIndex >= 5 && result?.journal?.posted === true ? '✓ Posted' : STAGE_HINTS[Math.max(activeIndex, 0)]}</span>
+                  </div>
+                  <button className="btn tiny" type="button" onClick={step}>
+                    {activeIndex >= STAGE_ORDER.length - 1 ? 'Process next transaction →' : 'Next stage →'}
+                  </button>
+                </div>
+              ) : null}
+              <EngineMachine
+                result={result}
+                activeIndex={activeIndex}
+                running={running}
+                animating={running || (mode === 'step' && queued && activeIndex >= 0 && activeIndex < STAGE_ORDER.length - 1)}
+                mode={mode}
+                onStep={mode === 'step' ? step : () => undefined}
+              />
               <StageTheater
                 result={result}
                 activeIndex={activeIndex}
@@ -988,3 +986,6 @@ export function EngineClient(): JSX.Element {
     </div>
   );
 }
+
+
+

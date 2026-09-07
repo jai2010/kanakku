@@ -55,10 +55,6 @@ export function EngineMachine(props: {
   return (
     <section className="machine" aria-label="Kanakku accounting engine">
       <div className="machine-grid" />
-      <div className="tank">
-        <b>KANAKKU</b>
-        <small>ACCOUNTING ENGINE</small>
-      </div>
       {props.result !== null ? (
         <div className="float-card in">
           <MerchantMark mark={props.result.mark} tint={props.result.tint} />
