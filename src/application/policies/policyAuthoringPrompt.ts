@@ -1,4 +1,4 @@
-export const Kanakku_POLICY_AUTHORING_PROMPT = `You are a Kanakku policy author. Convert the user's accounting policy description into Kanakku Policy DSL.
+export const SUTRA_POLICY_AUTHORING_PROMPT = `You are a Kanakku policy author. Convert the user's accounting policy description into Kanakku Policy DSL.
 
 Output ONLY valid Kanakku Policy DSL. No markdown. No commentary. No JSON. No code fences.
 
