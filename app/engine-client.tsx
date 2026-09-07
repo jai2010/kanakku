@@ -734,25 +734,22 @@ export function EngineClient(): JSX.Element {
                           sentence = `I paid ${rupee(example.amount)} at ${example.merchant}`;
                           break;
                         case 'PAYMENT':
-                          sentence = `I received ${rupee(example.amount)} from ${example.merchant}`;
+                          sentence = `A customer paid ${rupee(example.amount)} to my marketplace`;
                           break;
                         case 'REFUND':
-                          sentence = `I got a refund of ${rupee(example.amount)} from ${example.merchant}`;
+                          sentence = `I refunded ${rupee(example.amount)} to ${example.merchant}`;
                           break;
                         case 'USAGE':
-                          sentence = `I used ${example.merchant} for ${rupee(example.amount)}`;
+                          sentence = `My marketplace used ${example.merchant} for ${rupee(example.amount)}`;
                           break;
                         case 'WALLET_LOAD':
-                          sentence = `I loaded ${rupee(example.amount)} into my ${example.merchant} wallet`;
-                          break;
-                        case 'WALLET_SPEND':
-                          sentence = `I spent ${rupee(example.amount)} from my ${example.merchant} wallet`;
+                          sentence = `A buyer loaded ${rupee(example.amount)} into their wallet`;
                           break;
                         case 'MARKETPLACE_SALE':
-                          sentence = `I sold ${rupee(example.amount)} worth of goods on ${example.merchant}`;
+                          sentence = `A seller just made a ${rupee(example.amount)} sale on my marketplace`;
                           break;
                         case 'SELLER_PAYOUT':
-                          sentence = `I received ${rupee(example.amount)} from ${example.merchant} as a payout`;
+                          sentence = `I paid ${example.merchant} a ${rupee(example.amount)} seller payout`;
                           break;
                         default:
                           sentence = `${example.merchant} - ${typeLabel(example.type)} - ${rupee(example.amount)}`;

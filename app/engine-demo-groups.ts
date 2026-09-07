@@ -1,6 +1,6 @@
 import { EngineEventType, EngineExampleView } from './engine-types';
 
-export type DemoGroupId = 'purchases' | 'wallet' | 'marketplace' | 'usage' | 'refunds';
+export type DemoGroupId = 'purchases' | 'marketplace' | 'usage' | 'refunds';
 
 export type DemoGroup = {
   id: DemoGroupId;
@@ -19,12 +19,6 @@ const GROUP_ORDER: Array<{
     label: 'Purchases',
     types: ['PURCHASE', 'PAYMENT'],
     keys: ['starbucks', 'amazon', 'uber']
-  },
-  {
-    id: 'wallet',
-    label: 'Wallet',
-    types: ['WALLET_LOAD', 'WALLET_SPEND'],
-    keys: ['priya-load', 'priya-spend']
   },
   {
     id: 'marketplace',
