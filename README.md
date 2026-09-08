@@ -236,37 +236,6 @@ Operational events and financial accounting remain distinct concepts, connected 
   <img src="docs/media/kanakku-accounting-engine.png" alt="KANAKKU Accounting Engine Architecture" width="100%">
 </p>
 
-At the core of KANAKKU is a layered accounting pipeline:
-
-```text
-Business Transaction
-        │
-        ▼
-┌─────────────────────┐
-│   Policy Resolver   │
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│   Rule Evaluation   │
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Effect / Treatment  │
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│  Journal Generation │
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│ Validator / Balance │
-└──────────┬──────────┘
-           ▼
-┌─────────────────────┐
-│    Ledger Posting   │
-└─────────────────────┘
-```
-
 Each stage has a defined responsibility, making the accounting process inspectable rather than a black box.
 
 For the detailed architecture, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
