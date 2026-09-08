@@ -5,7 +5,7 @@
 An open-source accounting engine that turns business intent into **deterministic, auditable, double-entry accounting**.
 
 <p align="center">
-  <video src="docs/media/kanakku-demo.mp4" controls width="100%" alt="KANAKKU Accounting Engine Demo"></video>
+  <video src="https://github.com/user-attachments/assets/c6b4a7b4-dac4-4308-a8a0-e2ad10c5dd5e" controls width="100%" alt="KANAKKU Accounting Engine Demo"></video>
 </p>
 
 <p align="center">
