@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Kanakku Accounting Engine",
+    "subtitle": "Deterministic double-entry accounting kernel",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "business-event",
+      "type": "external",
+      "label": "Business Event",
+      "sublabel": "Economic facts",
+      "pos": [40, 280],
+      "size": [120, 60]
+    },
+    {
+      "id": "policy-resolver",
+      "type": "backend",
+      "label": "Policy Resolver",
+      "sublabel": "Versioned rules",
+      "pos": [220, 280],
+      "size": [130, 60]
+    },
+    {
+      "id": "rule-engine",
+      "type": "backend",
+      "label": "Rule Engine",
+      "sublabel": "Priority evaluation",
+      "pos": [410, 280],
+      "size": [130, 60]
+    },
+    {
+      "id": "effect-treatment",
+      "type": "backend",
+      "label": "Effect / Treatment",
+      "sublabel": "Amount resolution",
+      "pos": [600, 280],
+      "size": [130, 60]
+    },
+    {
+      "id": "journal-engine",
+      "type": "backend",
+      "label": "Journal Engine",
+      "sublabel": "DR = CR validation",
+      "pos": [790, 280],
+      "size": [130, 60]
+    },
+    {
+      "id": "validator",
+      "type": "security",
+      "label": "Validator",
+      "sublabel": "Balance check",
+      "pos": [980, 280],
+      "size": [120, 60]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "Financial Ledger",
+      "sublabel": "Immutable records",
+      "pos": [1160, 280],
+      "size": [130, 60]
+    },
+    {
+      "id": "showcase-ui",
+      "type": "frontend",
+      "label": "Showcase UI",
+      "sublabel": "Next.js playground",
+      "pos": [600, 450],
+      "size": [130, 60]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Accounting Kernel",
+      "wraps": ["policy-resolver", "rule-engine", "effect-treatment", "journal-engine", "validator", "ledger"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "event-to-policy",
+      "from": "business-event",
+      "to": "policy-resolver",
+      "label": "tenant + date",
+      "variant": "emphasis",
+      "labelDy": 54
+    },
+    {
+      "id": "policy-to-rule",
+      "from": "policy-resolver",
+      "to": "rule-engine",
+      "label": "compiled policy",
+      "labelDy": 54
+    },
+    {
+      "id": "rule-to-effect",
+      "from": "rule-engine",
+      "to": "effect-treatment",
+      "label": "matched rule",
+      "labelDy": 54
+    },
+    {
+      "id": "effect-to-journal",
+      "from": "effect-treatment",
+      "to": "journal-engine",
+      "label": "amounts + lines",
+      "labelDy": 54
+    },
+    {
+      "id": "journal-to-validator",
+      "from": "journal-engine",
+      "to": "validator",
+      "label": "journal draft",
+      "labelDy": 54
+    },
+    {
+      "id": "validator-to-ledger",
+      "from": "validator",
+      "to": "ledger",
+      "label": "validated posting",
+      "labelDy": 54
+    },
+    {
+      "id": "ui-to-engine",
+      "from": "showcase-ui",
+      "to": "rule-engine",
+      "label": "teach policy",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ]
+}
