@@ -17,8 +17,6 @@ An open-source accounting engine that turns business intent into **deterministic
   <a href="https://kanakku1.vercel.app"><strong>▶ Try KANAKKU Live</strong></a>
   &nbsp; · &nbsp;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
-  &nbsp; · &nbsp;
-  <a href="https://github.com/jai2010/kanakku">GitHub</a>
 </p>
 
 ---
@@ -270,12 +268,6 @@ The current implementation includes:
 </p>
 
 Explore the accounting engine, transactions, Accounting Studio, ledger, and reconciliation.
-
-<p align="center">
-  <a href="https://github.com/jai2010/kanakku">
-    <strong>View the source on GitHub →</strong>
-  </a>
-</p>
 
 ---
 
