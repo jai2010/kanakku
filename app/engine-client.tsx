@@ -9,6 +9,7 @@ import { EngineQueueRail, LiveQueueItem, makeQueueItem } from './engine-queue-ra
 import { ResultPanel } from './engine-result';
 import { LedgerPanel } from './ledger-panel';
 import { ReconPanel } from './recon-panel';
+import { SettingsPanel, SettingsView } from './settings-panel';
 import { StudioPanel } from './studio-panel';
 import { TransactionsPanel } from './transactions-panel';
 import { AccountingProposal, StudioRecentWork } from './studio-model';
@@ -92,6 +93,7 @@ export function EngineClient(): JSX.Element {
   const [nlProcessing, setNlProcessing] = useState(false);
   const [nlError, setNlError] = useState<string | null>(null);
   const [examplesOpen, setExamplesOpen] = useState(false);
+  const [aiConfig, setAiConfig] = useState<SettingsView | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
   const processingRef = useRef(false);
@@ -108,6 +110,7 @@ export function EngineClient(): JSX.Element {
 
   useEffect(() => {
     void load();
+    void loadAiConfig();
     return () => clearTimers();
   }, []);
 
@@ -155,6 +158,18 @@ export function EngineClient(): JSX.Element {
     if (next.lastResult !== null) {
       setActiveIndex(STAGE_ORDER.length - 1);
       setRunning(false);
+    }
+  }
+
+  async function loadAiConfig(): Promise<void> {
+    try {
+      const response = await fetch('/api/settings?action=get', { method: 'GET' });
+      if (response.ok) {
+        const data: SettingsView = await response.json();
+        setAiConfig(data);
+      }
+    } catch {
+      // AI config unavailable, not critical
     }
   }
 
@@ -649,12 +664,17 @@ export function EngineClient(): JSX.Element {
   return (
     <div className={`app${busy ? ' busy-app' : ''}${view === 'engine' || view === 'ledger' || view === 'studio' || view === 'transactions' || view === 'recon' ? ' fit' : ''}`}>
       <header className="topbar">
-        <div className="brand">
+        <button
+          type="button"
+          className="brand"
+          onClick={() => openPrimaryView('engine')}
+          title="Go to Engine"
+        >
           <span className="mark" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 20h18L12 2Z" /></svg>
           </span>
           KANAKKU
-        </div>
+        </button>
         <div className="tag">Speak English. Kanakku handles the accounting.</div>
         <div className="nav-wrap" ref={navRef}>
           <button
@@ -684,6 +704,15 @@ export function EngineClient(): JSX.Element {
                 onClick={() => openPrimaryView(id)}
               >{label}</button>
             ))}
+            <div className="nav-divider" />
+            <button
+              type="button"
+              className={`nav-settings-btn${view === 'settings' ? ' active' : ''}`}
+              onClick={() => openPrimaryView('settings')}
+              title="AI / LLM Settings"
+            >
+              ⚙ Settings
+            </button>
           </nav>
         </div>
         <div className="top-actions">
@@ -888,7 +917,28 @@ export function EngineClient(): JSX.Element {
         ) : null}
 
         {view === 'studio' ? (
-          <StudioPanel
+          <>
+            <div className="settings-ai-status-bar">
+              {aiConfig?.configured ? (
+                <span className="settings-ai-status configured">
+                  <span className="dot" />
+                  AI configured
+                </span>
+              ) : (
+                <span className="settings-ai-status not-configured">
+                  <span className="dot" />
+                  AI provider not configured
+                  <button
+                    type="button"
+                    className="settings-configure-link"
+                    onClick={() => openPrimaryView('settings')}
+                  >
+                    Configure AI
+                  </button>
+                </span>
+              )}
+            </div>
+            <StudioPanel
             snapshot={snapshot}
             pane={studioPane}
             activity={studioActivity}
@@ -915,6 +965,7 @@ export function EngineClient(): JSX.Element {
             onAddLine={(ruleId, side, accountCode) => void addStudioLine(ruleId, side, accountCode)}
             onToggle={(id) => void toggleRule(id)}
           />
+          </>
         ) : null}
 
         {view === 'transactions' ? (
@@ -979,6 +1030,12 @@ export function EngineClient(): JSX.Element {
             transactionRuleFilter={transactionRuleFilter}
             onClearTransactionFilter={() => setTransactionRuleFilter(null)}
           />
+        ) : null}
+
+        {view === 'settings' ? (
+          <div className="settings-workspace">
+            <SettingsPanel />
+          </div>
         ) : null}
       </main>
       <div className={`toast${toast !== null ? ' show' : ''}`}>{toast}</div>

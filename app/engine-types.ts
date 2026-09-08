@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export type EngineView = 'transactions' | 'engine' | 'studio' | 'ledger' | 'recon';
+export type EngineView = 'transactions' | 'engine' | 'studio' | 'ledger' | 'recon' | 'settings';
 export type StudioPane = 'overview' | 'activities' | 'sources' | 'transformations' | 'accounts' | 'versions';
 export type EngineMode = 'live' | 'step';
 export const ENGINE_EVENT_TYPES = [

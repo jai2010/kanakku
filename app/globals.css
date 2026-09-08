@@ -123,6 +123,17 @@ a { color: inherit; }
   font-weight: 800;
   font-size: 20px;
   letter-spacing: 0.12em;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--blue);
 }
 
 .mark {
@@ -4793,6 +4804,250 @@ button.tx-node:hover { background: var(--panel-hover); }
   .recon-page h1 { font-size: 22px; }
   .topbar { gap: 10px; padding: 0 12px; }
   .mode button { padding: 5px 9px; }
+}
+
+/* ── Settings panel ─────────────────────────────────────────────── */
+
+.settings-panel {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 20px 0;
+}
+
+.settings-header {
+  margin-bottom: 20px;
+}
+
+.settings-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+.settings-desc {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.settings-note {
+  color: var(--faint);
+  font-size: 12px;
+  margin: 8px 0 0;
+  font-style: italic;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-field .label {
+  font-size: 11px;
+  color: #7895aa;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.settings-field select,
+.settings-field input {
+  width: 100%;
+  background: #071725;
+  border: 1px solid #20415a;
+  color: #dceaf5;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 13px;
+}
+
+.settings-field select:focus,
+.settings-field input:focus {
+  outline: 2px solid rgba(57, 168, 255, 0.35);
+  border-color: var(--blue);
+}
+
+.settings-field select {
+  appearance: auto;
+}
+
+.settings-apikey-row {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-apikey-row input {
+  flex: 1;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.settings-save-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+.settings-test-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+.settings-test-result {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.settings-test-result.success {
+  background: rgba(44, 227, 138, 0.1);
+  border: 1px solid rgba(44, 227, 138, 0.25);
+  color: var(--green);
+}
+
+.settings-test-result.error {
+  background: rgba(255, 107, 122, 0.1);
+  border: 1px solid rgba(255, 107, 122, 0.25);
+  color: var(--danger);
+}
+
+.settings-info {
+  margin-top: 16px;
+  padding: 14px;
+  background: rgba(11, 32, 48, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.settings-info p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.settings-info p:last-child {
+  margin-bottom: 0;
+}
+
+.settings-info strong {
+  color: var(--text-dim);
+}
+
+.settings-info code {
+  background: rgba(57, 168, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--blue);
+}
+
+.settings-ai-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.settings-ai-status.configured {
+  background: rgba(44, 227, 138, 0.12);
+  color: var(--green);
+}
+
+.settings-ai-status.not-configured {
+  background: rgba(255, 181, 71, 0.12);
+  color: var(--amber);
+}
+
+.settings-ai-status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.settings-ai-status.configured .dot {
+  background: var(--green);
+}
+
+.settings-ai-status.not-configured .dot {
+  background: var(--amber);
+}
+
+.settings-configure-link {
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.settings-configure-link:hover {
+  color: var(--blue-2);
+}
+
+/* ── Nav additions for settings ──────────────────────────────── */
+
+.nav-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 4px;
+}
+
+.nav-settings-btn {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 8px 14px;
+  border-radius: 9px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nav-settings-btn.active {
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--blue);
+  border-radius: 0;
+  padding-bottom: 10px;
+}
+
+/* ── Settings workspace & status bar ────────────────────────── */
+
+.settings-workspace {
+  padding: 16px;
+  height: 100%;
+}
+
+.settings-ai-status-bar {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
